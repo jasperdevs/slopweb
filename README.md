@@ -28,6 +28,10 @@ Slopweb starts on `localhost` by default. If port `8787` is busy, it picks the n
 npx slopweb
 ```
 
+```powershell
+pnpm dlx slopweb
+```
+
 </details>
 
 <details>
@@ -87,14 +91,14 @@ slopweb
 <summary>Run from source</summary>
 
 ```powershell
-npm install
-npm start
+pnpm install
+pnpm start
 ```
 
 Run checks:
 
 ```powershell
-npm run check
+pnpm run check
 ```
 
 </details>

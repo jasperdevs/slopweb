@@ -1,0 +1,199 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    optionalDependencies:
+      '@ai-sdk/openai':
+        specifier: 3.0.53
+        version: 3.0.53(zod@4.3.6)
+      '@openai/codex':
+        specifier: 0.122.0
+        version: 0.122.0
+      ai:
+        specifier: 6.0.168
+        version: 6.0.168(zod@4.3.6)
+      zod:
+        specifier: 4.3.6
+        version: 4.3.6
+
+packages:
+
+  '@ai-sdk/gateway@3.0.104':
+    resolution: {integrity: sha512-ZKX5n74io8VIRlhIMSLWVlvT3sXC8Z7cZ9GHuWBWZDVi96+62AIsWuLGvMfcBA1STYuSoDrp6rIziZmvrTq0TA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/openai@3.0.53':
+    resolution: {integrity: sha512-Wld+Rbc05KaUn08uBt06eEuwcgalcIFtIl32Yp+GxuZXUQwOb6YeAuq+C6da4ch6BurFoqEaLemJVwjBb7x+PQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/provider-utils@4.0.23':
+    resolution: {integrity: sha512-z8GlDaCmRSDlqkMF2f4/RFgWxdarvIbyuk+m6WXT1LYgsnGiXRJGTD2Z1+SDl3LqtFuRtGX1aghYvQLoHL/9pg==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/provider@3.0.8':
+    resolution: {integrity: sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ==}
+    engines: {node: '>=18'}
+
+  '@openai/codex@0.122.0':
+    resolution: {integrity: sha512-fMQoBo/D9S2/FNHgCMEGnEtG+LIm7ot2PbtpU26pyKDjKS47o9XByNv8gH3X0aDg6A4Algq21laUkFhonkgdsw==}
+    engines: {node: '>=16'}
+    hasBin: true
+
+  '@openai/codex@0.122.0-darwin-arm64':
+    resolution: {integrity: sha512-J1rUDdVBgIwpFqwmkjgVWbbAk8oxuw/1JuIGUXJMz7wAsdvEgsVazwndIjQVN1nDtdD6zznlUtl69oPV1hhXcA==}
+    engines: {node: '>=16'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@openai/codex@0.122.0-darwin-x64':
+    resolution: {integrity: sha512-VUXZxD/c/v2Mdler7epYJc8EH80fGbAC55QBVaxqSjX6OaoGO1sHqp7Nept1p52jMRtyc3VTv2/hkV1wEy+96w==}
+    engines: {node: '>=16'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@openai/codex@0.122.0-linux-arm64':
+    resolution: {integrity: sha512-dtRm+R+BnwEZDFahIMl56tttzE3VtJLt2CuacKpn9ZDs8H9DW5lwGWdTEm94ANWWeyzigFObidQyitgdgwFHow==}
+    engines: {node: '>=16'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@openai/codex@0.122.0-linux-x64':
+    resolution: {integrity: sha512-GYQBkwER9RPn7spJOwB3f/pTyk3KWKsRI8W+2Dl5H3XSxJJ5aVZeNKBGChSw6lyJWAmuZXssBu037KQx15lsGA==}
+    engines: {node: '>=16'}
+    cpu: [x64]
+    os: [linux]
+
+  '@openai/codex@0.122.0-win32-arm64':
+    resolution: {integrity: sha512-7SjzC/Xzw7md2//2W03Eid2bgY5LHfKinD6VwgfwLJbYFGsd9LDIduZC/8GABWSDXOgqE2SoZDiD2KwlG63Tkw==}
+    engines: {node: '>=16'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@openai/codex@0.122.0-win32-x64':
+    resolution: {integrity: sha512-0OR/QjqOZ7zX12s6Dh7qy/6H4WZRgFAp529EUg5C7tXj5xXdopi8A9InQfehu4KEJE3Qol2Lj/QBrOcahFXoPg==}
+    engines: {node: '>=16'}
+    cpu: [x64]
+    os: [win32]
+
+  '@opentelemetry/api@1.9.0':
+    resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
+    engines: {node: '>=8.0.0'}
+
+  '@standard-schema/spec@1.1.0':
+    resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
+  '@vercel/oidc@3.2.0':
+    resolution: {integrity: sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==}
+    engines: {node: '>= 20'}
+
+  ai@6.0.168:
+    resolution: {integrity: sha512-2HqCJuO+1V2aV7vfYs5LFEUfxbkGX+5oa54q/gCCTL7KLTdbxcCu5D7TdLA5kwsrs3Szgjah9q6D9tpjHM3hUQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  eventsource-parser@3.0.8:
+    resolution: {integrity: sha512-70QWGkr4snxr0OXLRWsFLeRBIRPuQOvt4s8QYjmUlmlkyTZkRqS7EDVRZtzU3TiyDbXSzaOeF0XUKy8PchzukQ==}
+    engines: {node: '>=18.0.0'}
+
+  json-schema@0.4.0:
+    resolution: {integrity: sha512-es94M3nTIfsEPisRafak+HDLfHXnKBhV3vU5eqPcS3flIWqcxJWgXHXiey3YrpaNsanY5ei1VoYEbOzijuq9BA==}
+
+  zod@4.3.6:
+    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
+
+snapshots:
+
+  '@ai-sdk/gateway@3.0.104(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.3.6)
+      '@vercel/oidc': 3.2.0
+      zod: 4.3.6
+    optional: true
+
+  '@ai-sdk/openai@3.0.53(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.3.6)
+      zod: 4.3.6
+    optional: true
+
+  '@ai-sdk/provider-utils@4.0.23(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.8
+      '@standard-schema/spec': 1.1.0
+      eventsource-parser: 3.0.8
+      zod: 4.3.6
+    optional: true
+
+  '@ai-sdk/provider@3.0.8':
+    dependencies:
+      json-schema: 0.4.0
+    optional: true
+
+  '@openai/codex@0.122.0':
+    optionalDependencies:
+      '@openai/codex-darwin-arm64': '@openai/codex@0.122.0-darwin-arm64'
+      '@openai/codex-darwin-x64': '@openai/codex@0.122.0-darwin-x64'
+      '@openai/codex-linux-arm64': '@openai/codex@0.122.0-linux-arm64'
+      '@openai/codex-linux-x64': '@openai/codex@0.122.0-linux-x64'
+      '@openai/codex-win32-arm64': '@openai/codex@0.122.0-win32-arm64'
+      '@openai/codex-win32-x64': '@openai/codex@0.122.0-win32-x64'
+    optional: true
+
+  '@openai/codex@0.122.0-darwin-arm64':
+    optional: true
+
+  '@openai/codex@0.122.0-darwin-x64':
+    optional: true
+
+  '@openai/codex@0.122.0-linux-arm64':
+    optional: true
+
+  '@openai/codex@0.122.0-linux-x64':
+    optional: true
+
+  '@openai/codex@0.122.0-win32-arm64':
+    optional: true
+
+  '@openai/codex@0.122.0-win32-x64':
+    optional: true
+
+  '@opentelemetry/api@1.9.0':
+    optional: true
+
+  '@standard-schema/spec@1.1.0':
+    optional: true
+
+  '@vercel/oidc@3.2.0':
+    optional: true
+
+  ai@6.0.168(zod@4.3.6):
+    dependencies:
+      '@ai-sdk/gateway': 3.0.104(zod@4.3.6)
+      '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.23(zod@4.3.6)
+      '@opentelemetry/api': 1.9.0
+      zod: 4.3.6
+    optional: true
+
+  eventsource-parser@3.0.8:
+    optional: true
+
+  json-schema@0.4.0:
+    optional: true
+
+  zod@4.3.6:
+    optional: true

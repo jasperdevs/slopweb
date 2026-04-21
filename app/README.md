@@ -8,11 +8,15 @@ A local shell where synthetic addresses generate self-contained static HTML page
 npx slopweb
 ```
 
+```powershell
+pnpm dlx slopweb
+```
+
 From the repository root:
 
 ```powershell
-npm install
-npm start
+pnpm install
+pnpm start
 ```
 
 For a permanent install:
