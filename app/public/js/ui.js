@@ -1,4 +1,4 @@
-import { state, saveSourceOpen } from './state.js';
+import { activeTab, state, saveSourceOpen } from './state.js';
 
 export const els = {
   authStatus: document.querySelector('#authStatus'),
@@ -13,11 +13,11 @@ export const els = {
   homeBtn: document.querySelector('#homeBtn'),
   clearBtn: document.querySelector('#clearBtn'),
   historyList: document.querySelector('#historyList'),
+  tabList: document.querySelector('#tabList'),
+  newTabBtn: document.querySelector('#newTabBtn'),
   frame: document.querySelector('#pageFrame'),
   liveBadge: document.querySelector('#liveBadge'),
   liveBadgeText: document.querySelector('#liveBadge b'),
-  materializeLayer: document.querySelector('#materializeLayer'),
-  buildStatus: document.querySelector('#buildStatus'),
   elementTrail: document.querySelector('#elementTrail'),
   sourceRail: document.querySelector('#sourceRail'),
   sourceToggle: document.querySelector('#sourceToggle'),
@@ -29,12 +29,11 @@ export const els = {
   startDeviceLoginBtn: document.querySelector('#startDeviceLoginBtn'),
   activeTabTitle: document.querySelector('#activeTabTitle'),
   chromeMenu: document.querySelector('.chrome-menu'),
+  menuNewTab: document.querySelector('#menuNewTab'),
   menuFocusAddress: document.querySelector('#menuFocusAddress'),
   menuToggleSource: document.querySelector('#menuToggleSource'),
   viewportShell: document.querySelector('.viewport-shell')
 };
-
-let materializeHideTimer = null;
 
 export function setStatus(kind, text) {
   els.authStatus.className = `status-pill ${kind}`;
@@ -51,45 +50,9 @@ export function focusAddress() {
 }
 
 export function setLiveMode(active, text = 'assembling elements') {
-  els.liveBadge.classList.toggle('hidden', !active);
+  els.liveBadge.classList.add('hidden');
   els.liveBadgeText.textContent = text;
   if (els.sourceStatus) els.sourceStatus.textContent = active ? 'streaming' : 'idle';
-}
-
-export function resetMaterialize(address, reason = 'opening') {
-  clearTimeout(materializeHideTimer);
-  state.materializedTags = [];
-  state.materializedBytes = 0;
-  els.materializeLayer.classList.remove('hidden', 'settled');
-  els.frame.classList.add('is-materializing');
-  els.buildStatus.textContent = `${reason.replace(/-/g, ' ')}: ${address}`;
-  els.elementTrail.replaceChildren();
-}
-
-export function updateMaterialize(tags, bytes) {
-  state.materializedTags = tags.slice(-36);
-  state.materializedBytes = bytes;
-  const recent = state.materializedTags.slice(-7);
-  const count = state.materializedTags.length;
-  els.buildStatus.textContent = count
-    ? `${count} elements · ${Math.max(1, Math.round(bytes / 1024))}kb`
-    : `${Math.max(1, Math.round(bytes / 1024))}kb received`;
-  els.elementTrail.replaceChildren(...recent.map((tag, index) => {
-    const item = document.createElement('li');
-    item.style.setProperty('--stagger', String(index));
-    item.textContent = `<${tag}>`;
-    return item;
-  }));
-}
-
-export function settleMaterialize() {
-  els.materializeLayer.classList.add('settled');
-  els.frame.classList.remove('is-materializing');
-  clearTimeout(materializeHideTimer);
-  materializeHideTimer = setTimeout(() => {
-    els.materializeLayer.classList.add('hidden');
-    els.materializeLayer.classList.remove('settled');
-  }, 900);
 }
 
 export function setSourceOpen(open) {
@@ -122,4 +85,73 @@ export function renderHistory(navigate) {
   });
   els.backBtn.disabled = state.index <= 0;
   els.forwardBtn.disabled = state.index >= state.entries.length - 1;
+}
+
+export function renderTabs({ activate, close }) {
+  els.tabList.replaceChildren(...state.tabs.map(tab => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `tab ${tab.id === state.activeTabId ? 'active' : ''}`;
+    button.setAttribute('role', 'tab');
+    button.setAttribute('aria-selected', tab.id === state.activeTabId ? 'true' : 'false');
+    button.dataset.tabId = tab.id;
+
+    const favicon = document.createElement('span');
+    favicon.className = 'tab-favicon';
+    favicon.setAttribute('aria-hidden', 'true');
+
+    const title = document.createElement('span');
+    title.className = 'tab-title';
+    title.textContent = tab.title || 'New Tab';
+
+    const closeButton = document.createElement('span');
+    closeButton.className = 'tab-close';
+    closeButton.setAttribute('role', 'button');
+    closeButton.setAttribute('aria-label', 'Close tab');
+    closeButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"/></svg>';
+    closeButton.addEventListener('click', event => {
+      event.stopPropagation();
+      close(tab.id);
+    });
+
+    button.append(favicon, title, closeButton);
+    button.addEventListener('click', () => activate(tab.id));
+    return button;
+  }));
+}
+
+export function renderElementTrail(tags) {
+  const recent = tags.slice(-12);
+  els.elementTrail.replaceChildren(...recent.map(tag => {
+    const chip = document.createElement('span');
+    chip.textContent = tag;
+    return chip;
+  }));
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function highlightLine(line) {
+  return escapeHtml(line)
+    .replace(/(&lt;\/?)([a-z][\w-]*)/gi, '$1<span class="code-tag">$2</span>')
+    .replace(/([\w:-]+)=(&quot;.*?&quot;|&#039;.*?&#039;)/g, '<span class="code-attr">$1</span>=<span class="code-value">$2</span>')
+    .replace(/(&lt;!--[\s\S]*?--&gt;)/g, '<span class="code-comment">$1</span>');
+}
+
+export function renderSource(sourceEl, statusEl, rawHtml, maxChars = 80000) {
+  const fullText = String(rawHtml || '');
+  const text = fullText.length > maxChars
+    ? `... trimmed ${fullText.length - maxChars} chars ...\n${fullText.slice(-maxChars)}`
+    : fullText;
+  const lines = text.split('\n');
+  sourceEl.innerHTML = lines.map((line, index) => `<span class="code-line"><span class="line-no">${index + 1}</span><span class="line-code">${highlightLine(line) || ' '}</span></span>`).join('');
+  sourceEl.scrollTop = sourceEl.scrollHeight;
+  statusEl.textContent = fullText.length ? `${Math.max(1, Math.round(fullText.length / 1024))}kb` : 'waiting';
 }

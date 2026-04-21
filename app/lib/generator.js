@@ -5,7 +5,7 @@ import os from 'node:os';
 import { config, shouldTryAiSdk } from './config.js';
 import { sendNdjson, readJsonBody } from './http.js';
 import { makePrompt, makeJsonPrompt } from './prompts.js';
-import { makeBuiltInPage, makeLiveDraftPage, makeLocalGeneratedPage, makeMockPage } from './builtinPages.js';
+import { makeBuiltInPage, makeLocalGeneratedPage, makeMockPage } from './builtinPages.js';
 import { normalizeAddress, extractHtmlFromOutput, validateHtmlPagePayload, validatePagePayload, hardenPagePayload } from './html.js';
 import { sleep, withTimeout } from './utils.js';
 import { codexStatus } from './codexLauncher.js';
@@ -67,10 +67,7 @@ export async function handlePageStream(req, res) {
       return;
     }
 
-    // Immediate live elements, not a spinner. This keeps the frame useful even when Codex buffers output.
-    const draft = makeLiveDraftPage(address);
-    await reveal(draft, { minChunk: 120, maxChunk: 360, delayMs: 5, reason: 'draft' });
-    safeSend({ type: 'status', text: 'Compiling final static page' });
+    safeSend({ type: 'status', text: 'Waiting for generated HTML' });
 
     if (config.codexMock) {
       const page = await reveal(makeMockPage(address), { minChunk: 96, maxChunk: 280, delayMs: 8, reason: 'mock' });
@@ -106,15 +103,13 @@ export async function handlePageStream(req, res) {
       safeSend({ type: 'done', page: hardenPagePayload(page, address) });
     } catch (error) {
       if (closed || error.name === 'AbortError') return;
-      const fallback = await reveal(makeLocalGeneratedPage(address, history, error.message || String(error)), { minChunk: 96, maxChunk: 280, delayMs: 8, reason: 'fallback' });
-      safeSend({ type: 'done', page: fallback });
+      safeSend({ type: 'error', error: error.message || String(error) });
     }
 
     if (!closed) res.end();
   } catch (error) {
     if (!closed) {
-      const fallback = await reveal(makeLocalGeneratedPage(address, history, error.message || String(error)), { minChunk: 96, maxChunk: 280, delayMs: 8, reason: 'error-fallback' });
-      safeSend({ type: 'done', page: fallback });
+      safeSend({ type: 'error', error: error.message || String(error) });
       res.end();
     }
   }

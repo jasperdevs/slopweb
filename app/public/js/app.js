@@ -1,7 +1,7 @@
-import { state, saveHistory } from './state.js';
+import { activateTab, activeTab, closeTab, commitActiveTab, createTab, state, saveHistory, updateActiveTabTitle } from './state.js';
 import { checkAuthStatus, readNdjsonStream } from './api.js';
-import { composeSrcdoc, updateSourcePreview } from './frame.js';
-import { els, setStatus, updateOmniboxState, focusAddress, setLiveMode, setSourceOpen, toggleSource, renderHistory, resetMaterialize, updateMaterialize, settleMaterialize } from './ui.js';
+import { composeSrcdoc } from './frame.js';
+import { els, setStatus, updateOmniboxState, focusAddress, setLiveMode, setSourceOpen, toggleSource, renderHistory, renderTabs, renderElementTrail, renderSource } from './ui.js';
 
 const MATERIALIZED_TAGS = new Set([
   'header', 'nav', 'main', 'section', 'article', 'aside', 'footer',
@@ -27,7 +27,7 @@ function normalizeInput(value, base = state.entries[state.index]) {
 function slashCommandTarget(command, input) {
   const rest = input.trim();
   if (['home', 'new'].includes(command)) return 'synthetic://home';
-  if (command === 'help' || command === '?') return 'synthetic://help/slash-commands';
+  if (command === 'help' || command === '?') return 'synthetic://search/slash commands';
   if (command === 'news') return 'synthetic://news/world-wire';
   if (command === 'dashboard' || command === 'dash') return 'synthetic://app/personal-dashboard';
   if (command === 'game') return 'synthetic://game/neon-maze';
@@ -82,10 +82,10 @@ function resetLiveDocument(reason = 'document') {
   state.liveBuffer = '';
   state.liveRenderQueued = false;
   state.materializedTags = [];
-  state.materializedBytes = 0;
-  els.liveSource.textContent = '';
+  renderElementTrail([]);
   els.sourceStatus.textContent = 'waiting';
-  resetMaterialize(els.addressInput.value || 'synthetic://home', reason);
+  renderSource(els.liveSource, els.sourceStatus, '');
+  setLiveMode(true, reason === 'model' || reason === 'codex-final' ? 'receiving html' : 'waiting');
   els.frame.srcdoc = composeSrcdoc('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Loading</title><style>html,body{margin:0;min-height:100%;background:#fff;font-family:Arial,sans-serif;color:#202124}</style></head><body></body></html>');
 }
 
@@ -102,8 +102,8 @@ function appendLiveHtml(chunk) {
   if (!chunk) return;
   state.liveBuffer += chunk;
   recordMaterializedElements(chunk);
-  updateSourcePreview(els.liveSource, els.sourceStatus, state.liveBuffer);
-  updateMaterialize(state.materializedTags, state.liveBuffer.length);
+  renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
+  renderElementTrail(state.materializedTags);
   scheduleLiveRender();
 }
 
@@ -120,7 +120,6 @@ function beginLiveHtml(address) {
 function finishLiveHtml() {
   setLiveMode(false);
   els.sourceStatus.textContent = state.liveBuffer ? 'done' : 'idle';
-  settleMaterialize();
 }
 
 function recordMaterializedElements(chunk) {
@@ -172,10 +171,11 @@ function wireFrameNavigation() {
 
 function renderFinalPage(page) {
   document.title = `${page.title || 'Generated page'} · Slopweb`;
-  if (els.activeTabTitle) els.activeTabTitle.textContent = page.title || 'Generated page';
   state.currentHtml = page.html || '';
   state.liveBuffer = page.html || state.liveBuffer;
-  updateSourcePreview(els.liveSource, els.sourceStatus, state.liveBuffer);
+  updateActiveTabTitle(page.title || 'Generated page');
+  renderTabs({ activate: switchTab, close: closeExistingTab });
+  renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
   els.frame.srcdoc = composeSrcdoc(page.html || state.liveBuffer || '');
   window.setTimeout(wireFrameNavigation, 80);
 }
@@ -216,7 +216,6 @@ export async function navigate(rawAddress, options = {}) {
       if (event.type === 'reset') resetLiveDocument(event.reason || 'document');
       else if (event.type === 'status') {
         setLiveMode(true, event.text || 'assembling elements');
-        if (els.buildStatus) els.buildStatus.textContent = event.text || 'assembling elements';
       }
       else if (event.type === 'chunk') appendLiveHtml(event.text || '');
       else if (event.type === 'done') {
@@ -232,6 +231,7 @@ export async function navigate(rawAddress, options = {}) {
 
     if (!finalPage) throw new Error('Generator stream ended without a page.');
     renderFinalPage(finalPage);
+    saveHistory();
 
     if (authInfo) {
       setStatus('bad', 'Login needed');
@@ -263,10 +263,51 @@ els.frame.addEventListener('load', wireFrameNavigation);
 function clearHistory() {
   state.entries = [];
   state.index = -1;
+  state.currentHtml = '';
+  state.liveBuffer = '';
   saveHistory();
   renderHistory(navigate);
   if (els.chromeMenu) els.chromeMenu.open = false;
   navigate('synthetic://home');
+}
+
+function renderActiveTab() {
+  const tab = activeTab();
+  els.addressInput.value = state.entries[state.index] || tab?.entries?.[tab.index] || 'synthetic://home';
+  document.title = `${tab?.title || 'New Tab'} · Slopweb`;
+  state.liveBuffer = tab?.source || tab?.html || '';
+  state.currentHtml = tab?.html || '';
+  renderTabs({ activate: switchTab, close: closeExistingTab });
+  renderHistory(navigate);
+  updateOmniboxState();
+  renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
+  renderElementTrail([]);
+  if (state.currentHtml) {
+    els.frame.srcdoc = composeSrcdoc(state.currentHtml);
+    window.setTimeout(wireFrameNavigation, 80);
+  } else {
+    navigate('synthetic://home', { push: false, index: 0 });
+  }
+}
+
+function switchTab(id) {
+  if (id === state.activeTabId) return;
+  if (state.abortController) state.abortController.abort();
+  commitActiveTab();
+  activateTab(id);
+  renderActiveTab();
+}
+
+function closeExistingTab(id) {
+  if (state.abortController) state.abortController.abort();
+  closeTab(id);
+  renderActiveTab();
+}
+
+function openNewTab() {
+  if (state.abortController) state.abortController.abort();
+  createTab('synthetic://home');
+  renderActiveTab();
 }
 
 els.navForm.addEventListener('submit', event => {
@@ -276,12 +317,14 @@ els.navForm.addEventListener('submit', event => {
 els.addressInput.addEventListener('input', updateOmniboxState);
 els.addressInput.addEventListener('focus', () => requestAnimationFrame(() => els.addressInput.select()));
 els.omniboxClear.addEventListener('click', () => { els.addressInput.value = ''; updateOmniboxState(); els.addressInput.focus(); });
+els.newTabBtn.addEventListener('click', openNewTab);
 els.backBtn.addEventListener('click', () => { if (state.index > 0) navigate(state.entries[state.index - 1], { push: false, index: state.index - 1 }); });
 els.forwardBtn.addEventListener('click', () => { if (state.index < state.entries.length - 1) navigate(state.entries[state.index + 1], { push: false, index: state.index + 1 }); });
 els.reloadBtn.addEventListener('click', () => { navigate(state.entries[state.index] || els.addressInput.value, { push: false, index: Math.max(state.index, 0) }); });
 els.homeBtn.addEventListener('click', () => navigate('synthetic://home'));
 els.clearBtn.addEventListener('click', clearHistory);
 els.connectBtn.addEventListener('click', () => els.authDialog.showModal());
+els.menuNewTab?.addEventListener('click', () => { if (els.chromeMenu) els.chromeMenu.open = false; openNewTab(); });
 els.menuFocusAddress?.addEventListener('click', () => { if (els.chromeMenu) els.chromeMenu.open = false; focusAddress(); });
 els.sourceToggle.addEventListener('click', toggleSource);
 els.sourceCollapse.addEventListener('click', () => setSourceOpen(false));
@@ -324,7 +367,7 @@ window.addEventListener('keydown', event => {
   const key = event.key.toLowerCase();
   if ((event.ctrlKey || event.metaKey) && key === 'l') { event.preventDefault(); focusAddress(); }
   if ((event.ctrlKey || event.metaKey) && key === 'r') { event.preventDefault(); els.reloadBtn.click(); }
-  if ((event.ctrlKey || event.metaKey) && key === 't') { event.preventDefault(); navigate('synthetic://home'); }
+  if ((event.ctrlKey || event.metaKey) && key === 't') { event.preventDefault(); openNewTab(); }
   if (event.altKey && event.key === 'ArrowLeft') { event.preventDefault(); els.backBtn.click(); }
   if (event.altKey && event.key === 'ArrowRight') { event.preventDefault(); els.forwardBtn.click(); }
 });
@@ -332,6 +375,7 @@ window.addEventListener('keydown', event => {
 setSourceOpen(state.sourceOpen);
 updateOmniboxState();
 await checkAuth();
+renderTabs({ activate: switchTab, close: closeExistingTab });
 renderHistory(navigate);
 const params = new URLSearchParams(location.search);
 if (params.get('resume') === '1' && state.entries[state.index]) {
@@ -339,5 +383,5 @@ if (params.get('resume') === '1' && state.entries[state.index]) {
   updateOmniboxState();
   await navigate(state.entries[state.index], { push: false, index: state.index });
 } else {
-  await navigate('synthetic://home');
+  renderActiveTab();
 }

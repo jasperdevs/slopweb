@@ -10,50 +10,43 @@
   <main class="chrome-window" aria-label="Slopweb">
     <header class="chrome-top">
       <section class="tab-strip" aria-label="Tabs">
-        <div class="tab active" role="tab" aria-selected="true">
-          <span class="tab-favicon google-dot" aria-hidden="true"></span>
-          <span id="activeTabTitle" class="tab-title">New Tab</span>
-          <button class="tab-close" type="button" aria-label="Close tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5.8 12 11.2l5.6-5.4.6.6-5.5 5.6 5.5 5.6-.6.6-5.6-5.4-5.6 5.4-.6-.6 5.5-5.6-5.5-5.6z"/></svg></button>
+        <div id="tabList" class="tabs" role="tablist">
         </div>
-        <button class="new-tab" type="button" data-jump="synthetic://home" aria-label="New tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11.5 5h1v7h7v1h-7v7h-1v-7h-7v-1h7z"/></svg></button>
+        <button id="newTabBtn" class="new-tab" type="button" aria-label="New tab"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
         <div class="tab-spacer"></div>
         <div class="window-actions" aria-hidden="true"><button type="button"><span></span></button><button type="button"><span></span></button><button type="button"><span></span></button></div>
       </section>
 
       <form id="navForm" class="toolbar" autocomplete="off">
-        <button type="button" id="backBtn" class="chrome-icon nav-icon" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.7 5.7 9.4 12l6.3 6.3-.7.7-7-7 7-7z"/></svg></button>
-        <button type="button" id="forwardBtn" class="chrome-icon nav-icon" aria-label="Forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.3 18.3 14.6 12 8.3 5.7l.7-.7 7 7-7 7z"/></svg></button>
-        <button type="button" id="reloadBtn" class="chrome-icon nav-icon" aria-label="Reload"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.7 6.3A7 7 0 1 0 19 12h-1a6 6 0 1 1-1.8-4.3L13 11h7V4z"/></svg></button>
-        <button type="button" id="homeBtn" class="chrome-icon nav-icon" aria-label="Home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 5.1 7 6.1-.7.8-1.3-1.1V19h-4v-5h-2v5h-4v-8.1L5.7 12l-.7-.8z"/></svg></button>
+        <button type="button" id="backBtn" class="chrome-icon nav-icon" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6"/></svg></button>
+        <button type="button" id="forwardBtn" class="chrome-icon nav-icon" aria-label="Forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+        <button type="button" id="reloadBtn" class="chrome-icon nav-icon" aria-label="Reload"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 5v6h-6"/></svg></button>
+        <button type="button" id="homeBtn" class="chrome-icon nav-icon" aria-label="Home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 11 8-7 8 7"/><path d="M6.5 10.5V20h11v-9.5"/><path d="M10 20v-5h4v5"/></svg></button>
 
         <label class="omnibox" aria-label="Address and search bar">
-          <span class="omnibox-lock" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a5 5 0 0 0-5 5v3H6v10h12V11h-1V8a5 5 0 0 0-5-5Zm-4 8V8a4 4 0 0 1 8 0v3Zm-1 1h10v8H7Z"/></svg></span>
+          <span class="omnibox-lock" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.07 0l2-2a5 5 0 0 0-7.07-7.07l-1.15 1.15"/><path d="M14 11a5 5 0 0 0-7.07 0l-2 2A5 5 0 0 0 12 20.07l1.15-1.15"/></svg></span>
           <input id="addressInput" name="address" value="synthetic://home" aria-label="Address" spellcheck="false" autocomplete="off" />
-          <button id="omniboxClear" class="clear-btn" type="button" aria-label="Clear address"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5.7 5.6 5.6 5.6-5.6.7.7-5.6 5.6 5.6 5.6-.7.7-5.6-5.6-5.6 5.6-.7-.7 5.6-5.6-5.6-5.6z"/></svg></button>
-          <button class="go-btn" type="submit" aria-label="Generate page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11.5h12.2l-5.1-5.1.7-.7 6.3 6.3-6.3 6.3-.7-.7 5.1-5.1H5z"/></svg></button>
+          <button id="omniboxClear" class="clear-btn" type="button" aria-label="Clear address"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+          <button class="go-btn" type="submit" aria-label="Generate page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></button>
         </label>
 
-        <button type="button" class="chrome-icon star" aria-label="Bookmark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 4.4 2.1 4.3 4.7.7-3.4 3.3.8 4.7-4.2-2.2-4.2 2.2.8-4.7-3.4-3.3 4.7-.7Zm0 2.3-1.4 2.9-3.2.5 2.3 2.2-.5 3.1 2.8-1.5 2.8 1.5-.5-3.1 2.3-2.2-3.2-.5z"/></svg></button>
         <button id="connectBtn" class="toolbar-pill" type="button" title="Connect Codex with OAuth"><span class="pill-dot"></span>Codex</button>
         <div class="status-pill" id="authStatus">checking</div>
-        <button id="sourceToggle" type="button" class="chrome-icon source-toggle active" aria-label="Toggle source rail" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.2 7.4 4.6 12l4.6 4.6-.8.8L3 12l5.4-5.4Zm5.6 0 .8-.8L21 12l-5.4 5.4-.8-.8 4.6-4.6Zm-2.3 11.2-1-.2 2-13 1 .2Z"/></svg></button>
-        <button type="button" class="chrome-icon profile-btn" aria-label="Profile"><span>B</span></button>
+        <button id="sourceToggle" type="button" class="chrome-icon source-toggle active" aria-label="Toggle source rail" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 9-3 3 3 3"/><path d="m16 9 3 3-3 3"/><path d="m14 5-4 14"/></svg></button>
 
         <details class="chrome-menu">
-          <summary class="chrome-icon" aria-label="Open menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm0 5.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Zm0 5.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/></svg></summary>
+          <summary class="chrome-icon" aria-label="Open menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5h.01M12 12h.01M12 17.5h.01"/></svg></summary>
           <div class="menu-panel">
             <section class="menu-section first">
-              <button type="button" data-jump="synthetic://home"><span>New tab</span><kbd>Ctrl+T</kbd></button>
+              <button type="button" id="menuNewTab"><span>New tab</span><kbd>Ctrl+T</kbd></button>
               <button type="button" id="menuFocusAddress"><span>Focus address</span><kbd>Ctrl+L</kbd></button>
               <button type="button" id="menuToggleSource"><span>Toggle source rail</span></button>
-              <button type="button" data-jump="synthetic://help/slash-commands"><span>Slash commands</span></button>
             </section>
             <section class="menu-section">
               <h2>Generate</h2>
               <button type="button" data-jump="synthetic://news/world-wire"><span>World Wire</span></button>
               <button type="button" data-jump="synthetic://app/personal-dashboard"><span>Personal Dashboard</span></button>
               <button type="button" data-jump="synthetic://game/neon-maze"><span>Neon Maze</span></button>
-              <button type="button" data-jump="openai.com/research"><span>openai.com/research</span></button>
             </section>
             <section class="menu-section"><h2>History</h2><ol id="historyList"></ol></section>
             <section class="menu-section last"><button id="clearBtn" class="menu-danger" type="button"><span>Clear history</span></button></section>
@@ -67,29 +60,21 @@
         <button type="button" data-jump="synthetic://news/world-wire"><span class="bm-icon news-bm"></span>News</button>
         <button type="button" data-jump="synthetic://app/personal-dashboard"><span class="bm-icon dash-bm"></span>Dashboard</button>
         <button type="button" data-jump="synthetic://game/neon-maze"><span class="bm-icon game-bm"></span>Game</button>
-        <button type="button" data-jump="synthetic://help/slash-commands"><span class="bm-icon help-bm"></span>Commands</button>
-        <span class="bookmark-spacer"></span><span class="mode-chip">static HTML</span><span class="mode-chip">no generated JS</span>
+        <span class="bookmark-spacer"></span>
       </section>
     </header>
 
     <section class="viewport-shell" aria-label="Generated page and live source">
       <section class="page-pane">
         <div id="liveBadge" class="live-badge hidden" aria-live="polite"><span></span><b>assembling elements</b></div>
-        <div id="materializeLayer" class="materialize-layer hidden" aria-hidden="true">
-          <div class="materialize-scan"></div>
-          <div class="build-panel">
-            <p>materializing</p>
-            <strong id="buildStatus">opening address</strong>
-            <ol id="elementTrail"></ol>
-          </div>
-        </div>
         <iframe id="pageFrame" title="Generated page" sandbox="allow-forms allow-modals allow-same-origin" referrerpolicy="no-referrer"></iframe>
       </section>
       <aside id="sourceRail" class="source-rail" aria-label="Live HTML source">
         <header>
-          <div><strong>HTML</strong><span id="sourceStatus">idle</span></div>
+          <div><strong>Source</strong><span id="sourceStatus">idle</span></div>
           <button id="sourceCollapse" class="rail-close" type="button" aria-label="Hide source rail">×</button>
         </header>
+        <div id="elementTrail" class="element-strip" aria-label="Generated elements"></div>
         <pre id="liveSource"></pre>
       </aside>
     </section>
