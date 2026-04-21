@@ -83,14 +83,6 @@ Examples:
   slopweb login
   slopweb status
 
-Terminal slash commands:
-  /help       Show launcher commands
-  /model      Refresh detected local models
-  /models     Same as /model
-  /status     Check local AI and Codex
-  /codex      Use Codex OAuth
-  /quit       Exit
-
 Generation uses local OpenAI-compatible servers through Vercel AI SDK, or Codex through OAuth.
 The server is local-only by default and opens at http://localhost:8787.
 Press Ctrl+C to stop the running server.`);
@@ -105,46 +97,6 @@ if (args.includes('--version') || args.includes('-v')) {
   console.log(VERSION);
   process.exit(0);
 }
-
-function normalizeInitialSlashCommand() {
-  if (!args[0]?.startsWith('/')) return;
-  const commandName = args[0].slice(1).toLowerCase();
-  const mapped = {
-    '?': 'help',
-    help: 'help',
-    models: 'models',
-    model: 'models',
-    status: 'status',
-    login: 'login',
-    logout: 'logout',
-    doctor: 'doctor',
-    health: 'health'
-  }[commandName];
-  if (mapped) {
-    args[0] = mapped;
-    return;
-  }
-  if (commandName === 'codex') {
-    args[0] = 'start';
-    args.push('--codex');
-    return;
-  }
-  if (commandName === 'local') {
-    args[0] = 'start';
-    args.push('--local');
-    return;
-  }
-  if (commandName === 'manual') {
-    args[0] = 'start';
-    args.push('--manual');
-    return;
-  }
-  if (['quit', 'exit', 'q'].includes(commandName)) {
-    process.exit(0);
-  }
-}
-
-normalizeInitialSlashCommand();
 
 if (args[0] && !args[0].startsWith('-') && !COMMANDS.has(args[0])) {
   console.error(`Unknown command: ${args[0]}`);
@@ -347,17 +299,6 @@ function exitInteractiveScreen() {
   interactiveScreenActive = false;
 }
 
-function launchCommandHelp() {
-  return [
-    'Commands:',
-    '  /help    Show this list',
-    '  /model   Refresh models',
-    '  /status  Check local AI and Codex',
-    '  /codex   Use Codex OAuth',
-    '  /quit    Exit'
-  ].join('\n');
-}
-
 function renderInputBox(value = '') {
   const width = Math.min(78, Math.max(42, Number(process.stdout.columns || 80) - 6));
   const top = `╭${'─'.repeat(width)}╮`;
@@ -375,7 +316,6 @@ function renderLaunchPicker({ choices, index, models, installed, commandBuffer, 
     if (installed.length) lines.push(`Installed runtimes: ${installed.map(item => item.name).join(', ')}`);
   }
   lines.push('', renderInputBox(commandBuffer || ''));
-  lines.push(color('hint:', '127;127;127') + ' /help  /model  /status  /codex  /quit');
   if (message) lines.push('', message);
   lines.push('');
   choices.forEach((choice, choiceIndex) => {
@@ -533,22 +473,6 @@ async function pauseForEnter() {
   await promptText('\nPress Enter to return to the launcher.');
 }
 
-async function runLaunchCommand(command) {
-  const name = String(command || '').replace(/^\//, '').trim().toLowerCase();
-  if (!name || name === 'help' || name === '?') return { message: launchCommandHelp() };
-  if (name === 'models' || name === 'model') return { message: 'Model list refreshed.' };
-  if (name === 'status') {
-    clearInteractiveScreen();
-    await showStatus();
-    await pauseForEnter();
-    process.exitCode = 0;
-    return {};
-  }
-  if (name === 'codex') return { choice: { kind: 'codex', label: 'Codex OAuth' } };
-  if (name === 'quit' || name === 'exit' || name === 'q') process.exit(0);
-  return { message: `Unknown launcher command: /${name}\n${launchCommandHelp()}` };
-}
-
 async function promptManualEndpoint() {
   const baseUrlInput = await readInputBox({
     title: 'Manual local endpoint',
@@ -593,13 +517,8 @@ async function runLaunchPicker(options = {}) {
 
       let choice = result.choice;
       if (result.type === 'command') {
-        const handled = await runLaunchCommand(result.command);
-        if (handled?.message) {
-          message = handled.message;
-          continue;
-        }
-        if (!handled?.choice) continue;
-        choice = handled.choice;
+        message = 'Choose a model with Enter, or pick Codex/manual from the list.';
+        continue;
       }
 
       if (choice.kind === 'local') {

@@ -103,22 +103,6 @@ slopweb doctor
 </details>
 
 <details>
-<summary>Terminal slash commands</summary>
-
-Type these in the terminal launchpad:
-
-```text
-/help
-/model
-/models
-/status
-/codex
-/quit
-```
-
-</details>
-
-<details>
 <summary>Model providers</summary>
 
 Vercel AI SDK is included for local OpenAI-compatible servers. Slopweb does not use OpenAI API keys.

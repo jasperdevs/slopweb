@@ -62,19 +62,6 @@ slopweb --base-url http://localhost:11434/v1 --model llama3.2
 Auto-detection checks running Ollama, LM Studio, llama.cpp/llamafile, vLLM, SGLang, Jan, text-generation-webui, KoboldCpp, LocalAI, LiteLLM, TabbyAPI, Aphrodite, Xinference, Open WebUI, and AnythingLLM endpoints. It also scans installed Ollama manifests, LM Studio, Jan, GPT4All, Msty, Hugging Face cache, and local GGUF model folders.
 Set `SLOPWEB_BASE_URLS` to a comma-separated list when you run multiple custom local OpenAI-compatible servers.
 
-## Terminal Slash Commands
-
-Type these in the terminal launchpad:
-
-```text
-/help
-/model
-/models
-/status
-/codex
-/quit
-```
-
 ## Notes
 
 Generated pages are self-contained HTML files. External network calls, generated iframes, embeds, and `javascript:` URLs are blocked; links and forms route back through the shell.
