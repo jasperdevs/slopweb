@@ -181,8 +181,10 @@ async function startServer(defaults = {}) {
   process.env.PORT = String(port);
   process.env.HOST = host;
   process.env.SLOPWEB_VERSION = VERSION;
+  if (process.stdout.isTTY) process.env.SLOPWEB_SUPPRESS_SERVER_LOGS = '1';
   process.chdir(resolve(rootDir, 'app'));
   await import('../app/server.js');
+  renderRunningScreen({ host, port });
   if (openBrowser) setTimeout(() => openUrl(`http://${displayHost(host)}:${port}`), 250).unref?.();
 }
 
@@ -218,6 +220,32 @@ function openUrl(url) {
   const [cmd, cmdArgs] = commandByPlatform[process.platform] || commandByPlatform.linux;
   const child = spawn(cmd, cmdArgs, { stdio: 'ignore', detached: true });
   child.unref();
+}
+
+function renderRunningScreen({ host, port }) {
+  const url = `http://${displayHost(host)}:${port}`;
+  if (!process.stdout.isTTY) return;
+  enterInteractiveScreen();
+  const provider = process.env.SLOPWEB_PROVIDER || process.env.AI_PROVIDER || (process.env.SLOPWEB_BASE_URL || process.env.AI_SDK_BASE_URL ? 'local' : 'auto');
+  const lines = [
+    renderBanner(),
+    '',
+    'Slopweb is running',
+    '',
+    `  URL      ${url}`,
+    `  Provider ${provider}`,
+    process.env.SLOPWEB_MODEL ? `  Model    ${process.env.SLOPWEB_MODEL}` : '',
+    process.env.SLOPWEB_BASE_URL ? `  Base URL ${process.env.SLOPWEB_BASE_URL}` : '',
+    '',
+    'Press Ctrl+C to stop Slopweb.'
+  ].filter(line => line !== '');
+  writeInteractiveFrame(lines.join('\n'));
+  const stop = () => {
+    exitInteractiveScreen();
+    process.exit(0);
+  };
+  process.once('SIGINT', stop);
+  process.once('SIGTERM', stop);
 }
 
 function modelChoiceLabel(model) {

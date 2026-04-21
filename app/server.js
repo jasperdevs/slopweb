@@ -84,11 +84,13 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(config.port, config.host, () => {
   const displayHost = config.host === '0.0.0.0' || config.host === '127.0.0.1' ? 'localhost' : config.host;
-  console.log(`Slopweb running at http://${displayHost}:${config.port}`);
-  console.log(`Provider: ${config.aiProvider}`);
-  if (config.aiSdkModel) console.log(`Local model: ${config.aiSdkModel}`);
-  if (config.aiSdkBaseUrl) console.log(`AI base URL: ${config.aiSdkBaseUrl}`);
-  console.log(`Host: ${config.host}${config.allowLan ? ' (LAN enabled)' : ' (local only)'}`);
-  console.log('Press Ctrl+C to stop Slopweb.');
+  if (process.env.SLOPWEB_SUPPRESS_SERVER_LOGS !== '1') {
+    console.log(`Slopweb running at http://${displayHost}:${config.port}`);
+    console.log(`Provider: ${config.aiProvider}`);
+    if (config.aiSdkModel) console.log(`Local model: ${config.aiSdkModel}`);
+    if (config.aiSdkBaseUrl) console.log(`AI base URL: ${config.aiSdkBaseUrl}`);
+    console.log(`Host: ${config.host}${config.allowLan ? ' (LAN enabled)' : ' (local only)'}`);
+    console.log('Press Ctrl+C to stop Slopweb.');
+  }
   if (shouldTryAiSdk()) warmLocalModel().catch(() => {});
 });
