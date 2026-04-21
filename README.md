@@ -132,7 +132,8 @@ $env:SLOPWEB_MODEL="llama3.2"
 slopweb
 ```
 
-Auto-detection checks running Ollama, LM Studio, llama.cpp/llamafile, vLLM, SGLang, Jan, text-generation-webui, and KoboldCpp servers. It also scans installed Ollama manifests, LM Studio models, Hugging Face cache, and local GGUF model folders. Custom local providers can be added in `%USERPROFILE%\.slopweb\models.json`.
+Auto-detection checks running Ollama, LM Studio, llama.cpp/llamafile, vLLM, SGLang, Jan, text-generation-webui, KoboldCpp, LocalAI, LiteLLM, TabbyAPI, Aphrodite, Xinference, Open WebUI, and AnythingLLM endpoints. It also scans installed Ollama manifests, LM Studio, Jan, GPT4All, Msty, Hugging Face cache, and local GGUF model folders. Custom local providers can be added in `%USERPROFILE%\.slopweb\models.json`.
+Set `SLOPWEB_BASE_URLS` to a comma-separated list when you run multiple custom local OpenAI-compatible servers.
 
 </details>
 

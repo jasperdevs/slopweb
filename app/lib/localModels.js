@@ -15,7 +15,14 @@ const OPENAI_COMPAT_PROBES = [
   { providerId: 'sglang', name: 'SGLang', baseUrl: process.env.SGLANG_BASE_URL || 'http://127.0.0.1:30000/v1' },
   { providerId: 'jan', name: 'Jan', baseUrl: process.env.JAN_BASE_URL || 'http://127.0.0.1:1337/v1' },
   { providerId: 'textgen', name: 'text-generation-webui', baseUrl: process.env.TEXTGEN_BASE_URL || 'http://127.0.0.1:5000/v1' },
-  { providerId: 'koboldcpp', name: 'KoboldCpp', baseUrl: process.env.KOBOLDCPP_BASE_URL || 'http://127.0.0.1:5001/v1' }
+  { providerId: 'koboldcpp', name: 'KoboldCpp', baseUrl: process.env.KOBOLDCPP_BASE_URL || 'http://127.0.0.1:5001/v1' },
+  { providerId: 'localai', name: 'LocalAI', baseUrl: process.env.LOCALAI_BASE_URL || 'http://127.0.0.1:8080/v1' },
+  { providerId: 'litellm', name: 'LiteLLM', baseUrl: process.env.LITELLM_BASE_URL || 'http://127.0.0.1:4000/v1' },
+  { providerId: 'tabbyapi', name: 'TabbyAPI', baseUrl: process.env.TABBYAPI_BASE_URL || 'http://127.0.0.1:5000/v1' },
+  { providerId: 'aphrodite', name: 'Aphrodite Engine', baseUrl: process.env.APHRODITE_BASE_URL || 'http://127.0.0.1:2242/v1' },
+  { providerId: 'xinference', name: 'Xinference', baseUrl: process.env.XINFERENCE_BASE_URL || 'http://127.0.0.1:9997/v1' },
+  { providerId: 'openwebui', name: 'Open WebUI', baseUrl: process.env.OPENWEBUI_BASE_URL || process.env.OPEN_WEBUI_BASE_URL || 'http://127.0.0.1:3000/v1' },
+  { providerId: 'anythingllm', name: 'AnythingLLM', baseUrl: process.env.ANYTHINGLLM_BASE_URL || 'http://127.0.0.1:3001/v1' }
 ];
 
 function normalizeUrl(value) {
@@ -87,7 +94,7 @@ function dedupeModels(models) {
   const seen = new Set();
   const deduped = [];
   for (const model of models) {
-    const key = `${model.providerId}|${model.baseUrl}|${model.id}`.toLowerCase();
+    const key = `${model.baseUrl}|${model.id}`.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
     deduped.push(model);
@@ -164,10 +171,30 @@ function configuredSearchRoots() {
   const roots = [
     process.env.SLOPWEB_MODEL_DIRS,
     path.join(os.homedir(), '.lmstudio', 'models'),
+    path.join(os.homedir(), 'Library', 'Application Support', 'LM Studio', 'models'),
+    path.join(os.homedir(), 'Library', 'Caches', 'lm-studio', 'models'),
     path.join(os.homedir(), 'AppData', 'Roaming', 'LM Studio', 'models'),
     path.join(os.homedir(), 'AppData', 'Local', 'LM Studio', 'models'),
     path.join(os.homedir(), '.cache', 'lm-studio', 'models'),
     path.join(os.homedir(), '.cache', 'huggingface', 'hub'),
+    path.join(os.homedir(), 'Library', 'Caches', 'huggingface', 'hub'),
+    path.join(os.homedir(), 'AppData', 'Local', 'huggingface', 'hub'),
+    path.join(os.homedir(), 'AppData', 'Roaming', 'Jan', 'models'),
+    path.join(os.homedir(), 'Library', 'Application Support', 'Jan', 'models'),
+    path.join(os.homedir(), 'jan', 'models'),
+    path.join(os.homedir(), '.jan', 'models'),
+    path.join(os.homedir(), 'AppData', 'Roaming', 'nomic.ai', 'GPT4All'),
+    path.join(os.homedir(), 'AppData', 'Local', 'nomic.ai', 'GPT4All'),
+    path.join(os.homedir(), 'Library', 'Application Support', 'nomic.ai', 'GPT4All'),
+    path.join(os.homedir(), '.local', 'share', 'nomic.ai', 'GPT4All'),
+    path.join(os.homedir(), '.cache', 'gpt4all'),
+    path.join(os.homedir(), '.msty', 'models'),
+    path.join(os.homedir(), 'AppData', 'Roaming', 'Msty', 'models'),
+    path.join(os.homedir(), 'Library', 'Application Support', 'Msty', 'models'),
+    path.join(os.homedir(), 'AppData', 'Roaming', 'anythingllm-desktop', 'storage', 'models'),
+    path.join(os.homedir(), 'Library', 'Application Support', 'anythingllm-desktop', 'storage', 'models'),
+    path.join(os.homedir(), '.local', 'share', 'llama.cpp', 'models'),
+    path.join(os.homedir(), 'AppData', 'Local', 'llama.cpp', 'models'),
     path.join(os.homedir(), 'models'),
     path.join(os.homedir(), 'Models')
   ];
@@ -175,6 +202,13 @@ function configuredSearchRoots() {
     .flatMap(value => String(value || '').split(/[;,]/g))
     .map(value => value.trim())
     .filter(Boolean);
+}
+
+function configuredOpenAiProbes() {
+  return String(process.env.SLOPWEB_BASE_URLS || '')
+    .split(/[;,]/g)
+    .map((value, index) => ({ providerId: `custom${index + 1}`, name: 'Custom local endpoint', baseUrl: value.trim() }))
+    .filter(provider => provider.baseUrl);
 }
 
 async function listDirEntries(dir) {
@@ -294,7 +328,7 @@ export async function detectLocalModels() {
   if (!configuredProviderIds.has('ollama')) {
     probes.push(probeOllama().catch(() => []));
   }
-  for (const probe of OPENAI_COMPAT_PROBES) {
+  for (const probe of [...configuredOpenAiProbes(), ...OPENAI_COMPAT_PROBES]) {
     if (configuredProviderIds.has(probe.providerId.toLowerCase())) continue;
     probes.push(probeOpenAiProvider(probe).catch(() => []));
   }

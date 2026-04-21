@@ -20,18 +20,19 @@ const BANNER_LINES = [
   ' ███████║ ███████╗ ╚██████╔╝ ██║      ╚███╔███╔╝ ███████╗ ██████╔╝',
   ' ╚══════╝ ╚══════╝  ╚═════╝  ╚═╝       ╚══╝╚══╝  ╚══════╝ ╚═════╝'
 ];
+const LOGO_COLORS = ['97;33;210', '19;31;159', '35;143;255', '35;139;255', '97;33;210', '19;31;159'];
 
 function supportsColor() {
   return Boolean(process.stdout.isTTY && !process.env.NO_COLOR);
 }
 
-function color(text, code) {
-  return supportsColor() ? `\x1b[${code}m${text}\x1b[0m` : text;
+function color(text, rgb) {
+  return supportsColor() ? `\x1b[38;2;${rgb}m${text}\x1b[0m` : text;
 }
 
 function renderBanner() {
   return BANNER_LINES
-    .map((line, index) => color(line, index < 3 ? '38;5;205' : '38;5;217'))
+    .map((line, index) => color(line, LOGO_COLORS[index % LOGO_COLORS.length]))
     .join('\n');
 }
 
