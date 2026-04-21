@@ -60,6 +60,8 @@ export function setSourceOpen(open) {
   els.viewportShell.classList.toggle('source-collapsed', !state.sourceOpen);
   els.sourceToggle.classList.toggle('active', state.sourceOpen);
   els.sourceToggle.setAttribute('aria-pressed', state.sourceOpen ? 'true' : 'false');
+  els.sourceCollapse.setAttribute('aria-label', state.sourceOpen ? 'Collapse source rail' : 'Expand source rail');
+  els.sourceCollapse.title = state.sourceOpen ? 'Collapse source rail' : 'Expand source rail';
   saveSourceOpen();
 }
 

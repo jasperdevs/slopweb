@@ -327,7 +327,7 @@ els.connectBtn.addEventListener('click', () => els.authDialog.showModal());
 els.menuNewTab?.addEventListener('click', () => { if (els.chromeMenu) els.chromeMenu.open = false; openNewTab(); });
 els.menuFocusAddress?.addEventListener('click', () => { if (els.chromeMenu) els.chromeMenu.open = false; focusAddress(); });
 els.sourceToggle.addEventListener('click', toggleSource);
-els.sourceCollapse.addEventListener('click', () => setSourceOpen(false));
+els.sourceCollapse.addEventListener('click', toggleSource);
 els.menuToggleSource?.addEventListener('click', () => { if (els.chromeMenu) els.chromeMenu.open = false; toggleSource(); });
 
 document.querySelectorAll('[data-jump]').forEach(button => {
