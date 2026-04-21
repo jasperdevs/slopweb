@@ -275,7 +275,8 @@ function modelChoiceLabel(model) {
 }
 
 function statusMarker(live) {
-  return live ? '🟢' : '🔴';
+  if (!supportsColor()) return live ? '🟢' : '🔴';
+  return live ? color('●', '34;197;94') : color('●', '239;68;68');
 }
 
 async function waitForJson(url, timeoutMs) {
@@ -327,6 +328,14 @@ function clearInteractiveScreen() {
   if (process.stdout.isTTY) process.stdout.write('\x1b[2J\x1b[H');
 }
 
+function writeInteractiveFrame(text) {
+  if (!process.stdout.isTTY) {
+    process.stdout.write(`${text}\n`);
+    return;
+  }
+  process.stdout.write(`\x1b[H${text}\x1b[J`);
+}
+
 function enterInteractiveScreen() {
   if (!process.stdout.isTTY || interactiveScreenActive) return;
   process.stdout.write('\x1b[?1049h\x1b[2J\x1b[H\x1b[?25l');
@@ -353,38 +362,33 @@ function launchCommandHelp() {
   ].join('\n');
 }
 
-function renderInputBox(label, value = '', hint = '') {
+function renderInputBox(value = '') {
   const width = Math.min(78, Math.max(42, Number(process.stdout.columns || 80) - 6));
-  const title = ` ${label} `;
-  const top = `╭─${title}${'─'.repeat(Math.max(0, width - title.length - 1))}╮`;
+  const top = `╭${'─'.repeat(width)}╮`;
   const bottom = `╰${'─'.repeat(width)}╯`;
-  const raw = value || hint;
-  const visible = [...String(raw)].slice(-Math.max(0, width - 4)).join('');
-  const content = visible.padEnd(Math.max(0, width - 4), ' ');
+  const visible = [...String(value || '')].slice(-Math.max(0, width - 5)).join('');
+  const content = `> ${visible}`.padEnd(Math.max(0, width - 2), ' ');
   return `${top}\n│ ${content} │\n${bottom}`;
 }
 
 function renderLaunchPicker({ choices, index, models, installed, commandBuffer, message }) {
-  clearInteractiveScreen();
-  console.log(`${renderBanner()}\n\nSlopweb terminal`);
+  const lines = [`${renderBanner()}`, '', 'Slopweb terminal'];
   if (models.length) {
-    console.log('Model selector');
+    lines.push('Type a command or choose a model.');
   } else {
-    console.log('No local models detected.');
-    if (installed.length) console.log(`Installed runtimes: ${installed.map(item => item.name).join(', ')}`);
+    lines.push('No local models detected.');
+    if (installed.length) lines.push(`Installed runtimes: ${installed.map(item => item.name).join(', ')}`);
   }
-  console.log('');
+  lines.push('', renderInputBox(commandBuffer || ''));
+  lines.push(color('hint:', '127;127;127') + ' /help  /model  /status  /login  /manual  /quit');
+  if (message) lines.push('', message);
+  lines.push('', 'Models');
   choices.forEach((choice, choiceIndex) => {
     const pointer = choiceIndex === index ? color('›', '35;143;255') : ' ';
-    console.log(`${pointer} ${choice.label}`);
+    lines.push(`${pointer} ${choice.label}`);
   });
-  console.log('\n' + renderInputBox(
-    'editor',
-    commandBuffer || '',
-    'Type /help, /model, /status, /login, /manual, /quit'
-  ));
-  console.log('↑/↓ select  Enter choose  Esc cancel input  Ctrl+C quit');
-  if (message) console.log(`\n${message}`);
+  lines.push('', '↑/↓ select  Enter choose  Esc cancel input  Ctrl+C quit');
+  writeInteractiveFrame(lines.join('\n'));
 }
 
 function selectLaunchChoice(state) {
@@ -478,11 +482,10 @@ function readInputBox({ title, label, value = '', hint = '', message = '' }) {
     };
 
     const render = () => {
-      clearInteractiveScreen();
-      console.log(`${renderBanner()}\n\n${title}`);
-      if (message) console.log(`\n${message}`);
-      console.log('\n' + renderInputBox(label, text, hint));
-      console.log('\nEnter accept  Esc back  Ctrl+C quit');
+      const lines = [`${renderBanner()}`, '', title];
+      if (message) lines.push('', message);
+      lines.push('', renderInputBox(text), color('hint:', '127;127;127') + ` ${label}${hint ? `, e.g. ${hint}` : ''}`, '', 'Enter accept  Esc cancel  Ctrl+C quit');
+      writeInteractiveFrame(lines.join('\n'));
     };
 
     const onData = chunk => {
