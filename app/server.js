@@ -89,5 +89,6 @@ server.listen(config.port, config.host, () => {
   if (config.aiSdkModel) console.log(`Local model: ${config.aiSdkModel}`);
   if (config.aiSdkBaseUrl) console.log(`AI base URL: ${config.aiSdkBaseUrl}`);
   console.log(`Host: ${config.host}${config.allowLan ? ' (LAN enabled)' : ' (local only)'}`);
+  console.log('Press Ctrl+C to stop Slopweb.');
   if (shouldTryAiSdk()) warmLocalModel().catch(() => {});
 });

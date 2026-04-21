@@ -94,7 +94,8 @@ Terminal slash commands:
   /quit       Exit
 
 Generation uses local OpenAI-compatible servers through Vercel AI SDK, or Codex through OAuth.
-The server is local-only by default and opens at http://localhost:8787.`);
+The server is local-only by default and opens at http://localhost:8787.
+Press Ctrl+C to stop the running server.`);
 }
 
 if (args.includes('--help') || args.includes('-h')) {
