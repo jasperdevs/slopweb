@@ -61,9 +61,9 @@ function runSlashCommand(value) {
 async function checkAuth() {
   try {
     const data = await checkAuthStatus();
-    if (data.connected) setStatus('good', data.provider === 'ai-sdk' ? 'AI SDK ready' : 'Codex ready');
+    if (data.connected) setStatus('good', data.provider === 'ai-sdk' ? 'Local AI ready' : 'Codex ready');
     else if (data.mock) setStatus('warn', 'Mock mode');
-    else setStatus('bad', data.provider === 'ai-sdk' ? 'API key needed' : 'Login needed');
+    else setStatus('bad', data.provider === 'ai-sdk' ? 'Local AI needed' : 'Login needed');
     return data;
   } catch {
     setStatus('bad', 'Offline');
@@ -82,6 +82,18 @@ function resetLiveDocument(reason = 'document') {
   els.frame.srcdoc = composeSrcdoc('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Loading</title><style>html,body{margin:0;min-height:100%;background:#fff;font-family:Arial,sans-serif;color:#202124}</style></head><body></body></html>');
 }
 
+function hasOpenRawTextTag(html, tag) {
+  const text = String(html || '').toLowerCase();
+  return text.lastIndexOf(`<${tag}`) > text.lastIndexOf(`</${tag}`);
+}
+
+function canRenderLiveHtml(html) {
+  const text = String(html || '');
+  if (!/<body[\s>]/i.test(text)) return false;
+  if (text.lastIndexOf('<') > text.lastIndexOf('>')) return false;
+  return !['style', 'script', 'textarea', 'title'].some(tag => hasOpenRawTextTag(text, tag));
+}
+
 function scheduleLiveRender({ source = true, frame = true } = {}) {
   state.sourceRenderQueued ||= source;
   state.liveRenderQueued ||= frame;
@@ -94,7 +106,7 @@ function scheduleLiveRender({ source = true, frame = true } = {}) {
     state.sourceRenderQueued = false;
     state.liveRenderQueued = false;
     if (shouldRenderSource) renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
-    if (shouldRenderFrame) els.frame.srcdoc = composeSrcdoc(state.liveBuffer);
+    if (shouldRenderFrame && canRenderLiveHtml(state.liveBuffer)) els.frame.srcdoc = composeSrcdoc(state.liveBuffer, { live: true });
   });
 }
 

@@ -32,28 +32,33 @@ Open:
 http://localhost:8787
 ```
 
+Running `slopweb` in a terminal opens a launchpad for detected local models, Codex OAuth, or a manual local endpoint.
+
 ## Codex OAuth
 
-Slopweb wraps Codex OAuth directly:
+Slopweb can use Codex OAuth from the CLI:
 
 ```powershell
 npx slopweb login
 npx slopweb status
-npx slopweb
+npx slopweb --codex
 ```
 
-The app also exposes the same login flow through the Codex button. Slopweb uses an existing `codex` command when it finds one, then falls back to `npx @openai/codex`.
+Slopweb uses an existing `codex` command when it finds one, then falls back to `npx @openai/codex`.
 
-## AI SDK Mode
+## Model Providers
 
-Set an API key to stream model text directly through the Vercel AI SDK:
+Vercel AI SDK is included for local OpenAI-compatible endpoints. Slopweb does not use OpenAI API keys.
 
 ```powershell
-npm install -g slopweb ai @ai-sdk/openai zod
-$env:OPENAI_API_KEY="your_key_here"
-$env:AI_PROVIDER="ai-sdk"
-slopweb
+slopweb models
 ```
+
+```powershell
+slopweb --base-url http://localhost:11434/v1 --model llama3.2
+```
+
+Auto-detection checks Ollama, LM Studio, llama.cpp/llamafile, vLLM, SGLang, Jan, text-generation-webui, and KoboldCpp.
 
 ## Slash Commands
 

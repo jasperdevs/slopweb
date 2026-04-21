@@ -16,8 +16,9 @@ export const config = Object.freeze({
   codexReasoningEffort: process.env.CODEX_REASONING_EFFORT || 'low',
   codexTimeoutMs: Number(process.env.CODEX_TIMEOUT_MS || 120_000),
   codexMock: process.env.CODEX_MOCK === '1',
-  aiProvider: (process.env.AI_PROVIDER || 'auto').toLowerCase(),
-  aiSdkModel: process.env.AI_SDK_MODEL || process.env.OPENAI_MODEL || 'gpt-5.4-mini',
+  aiProvider: (process.env.SLOPWEB_PROVIDER || process.env.AI_PROVIDER || 'auto').toLowerCase(),
+  aiSdkModel: process.env.SLOPWEB_MODEL || process.env.AI_SDK_MODEL || '',
+  aiSdkBaseUrl: stripWrappingQuotes(process.env.SLOPWEB_BASE_URL || process.env.AI_SDK_BASE_URL || ''),
   aiSdkTimeoutMs: Number(process.env.AI_SDK_TIMEOUT_MS || process.env.CODEX_TIMEOUT_MS || 120_000)
 });
 
@@ -33,6 +34,6 @@ export function stripWrappingQuotes(value) {
 
 export function shouldTryAiSdk() {
   if (config.aiProvider === 'codex') return false;
-  if (config.aiProvider === 'ai-sdk') return true;
-  return Boolean(process.env.OPENAI_API_KEY);
+  if (['local', 'ai-sdk'].includes(config.aiProvider)) return true;
+  return config.aiProvider === 'auto' || Boolean(config.aiSdkBaseUrl);
 }

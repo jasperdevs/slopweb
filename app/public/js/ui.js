@@ -127,11 +127,28 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;');
 }
 
+function highlightTagToken(token) {
+  const escaped = escapeHtml(token);
+  if (/^<!--/i.test(token)) return `<span class="code-comment">${escaped}</span>`;
+  if (/^<!doctype/i.test(token)) return `<span class="code-doctype">${escaped}</span>`;
+  return escaped
+    .replace(/^(&lt;\/?)([a-z][\w-]*)/i, '<span class="code-bracket">$1</span><span class="code-tag">$2</span>')
+    .replace(/([\w:-]+)(=)(&quot;.*?&quot;|&#039;.*?&#039;|[^\s&>]+)/g, '<span class="code-attr">$1</span><span class="code-bracket">$2</span><span class="code-value">$3</span>')
+    .replace(/(\/?&gt;)$/, '<span class="code-bracket">$1</span>');
+}
+
 function highlightLine(line) {
-  return escapeHtml(line)
-    .replace(/(&lt;\/?)([a-z][\w-]*)/gi, '$1<span class="code-tag">$2</span>')
-    .replace(/([\w:-]+)=(&quot;.*?&quot;|&#039;.*?&#039;)/g, '<span class="code-attr">$1</span>=<span class="code-value">$2</span>')
-    .replace(/(&lt;!--[\s\S]*?--&gt;)/g, '<span class="code-comment">$1</span>');
+  const text = String(line || '');
+  const tokenRe = /<!--[\s\S]*?-->|<!doctype[^>]*>|<\/?[a-z][^>]*>/gi;
+  let html = '';
+  let lastIndex = 0;
+  for (const match of text.matchAll(tokenRe)) {
+    html += escapeHtml(text.slice(lastIndex, match.index));
+    html += highlightTagToken(match[0]);
+    lastIndex = match.index + match[0].length;
+  }
+  html += escapeHtml(text.slice(lastIndex));
+  return html;
 }
 
 export function renderSource(sourceEl, statusEl, rawHtml, maxChars = 80000) {

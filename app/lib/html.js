@@ -71,11 +71,6 @@ export function validateHtmlPagePayload(html, address, model = 'generator') {
   }, address);
 }
 
-export function validatePagePayload(page, address, model = page?.model || 'generator') {
-  if (!page || typeof page.html !== 'string') throw new Error('Generator did not return an html field.');
-  return hardenPagePayload({ ...page, model }, address);
-}
-
 function titleFromHtml(html) {
   const match = String(html || '').match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   if (!match) return '';

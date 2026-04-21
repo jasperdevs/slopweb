@@ -109,9 +109,11 @@ svg{width:18px;height:18px;display:block;fill:none;stroke:currentColor;stroke-wi
 .code-line:hover{background:rgba(255,255,255,.055)}
 .line-no{padding:0 10px 0 0;text-align:right;color:#666;user-select:none;border-right:1px solid rgba(255,255,255,.07)}
 .line-code{min-width:0;padding:0 12px;color:#e5e5e5}
-.code-tag{color:#fff;font-weight:650}
-.code-attr{color:#bdbdbd}
-.code-value{color:#d7d7d7}
+.code-doctype{color:#c4b5fd}
+.code-bracket{color:#7f8490}
+.code-tag{color:#ff8a80;font-weight:650}
+.code-attr{color:#ffd166}
+.code-value{color:#7dd3c7}
 .code-comment{color:#737373;font-style:italic}
 .source-collapsed .source-rail{grid-template-rows:minmax(0,1fr);border-left-color:#d8dee9;background:#f8fafd;color:#3c4043}
 .source-collapsed .source-rail header{height:100%;display:grid;place-items:center;padding:0;border-bottom:0;background:#f8fafd}

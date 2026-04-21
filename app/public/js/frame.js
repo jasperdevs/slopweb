@@ -39,10 +39,19 @@ export function sanitizeClientHtml(html) {
     .replace(/<embed\b[^>]*\/?\s*>/gi, '');
 }
 
-export function composeSrcdoc(html) {
+function completeLiveDocument(doc) {
+  if (!/<body[\s>]/i.test(doc)) return doc;
+  let completed = doc;
+  if (!/<\/body\s*>/i.test(completed)) completed += '\n</body>';
+  if (!/<\/html\s*>/i.test(completed)) completed += '\n</html>';
+  return completed;
+}
+
+export function composeSrcdoc(html, options = {}) {
   let doc = sanitizeClientHtml(html || '<!doctype html><title>Empty</title><body></body>');
   if (/^\s*```/i.test(doc)) doc = doc.replace(/^\s*```(?:html)?/i, '').replace(/```\s*$/i, '').trim();
   if (!/^\s*<!doctype html>/i.test(doc)) doc = `<!doctype html>\n${doc}`;
+  if (options.live) doc = completeLiveDocument(doc);
 
   const headInjection = securityMeta();
   if (/<head[^>]*>/i.test(doc)) doc = doc.replace(/<head([^>]*)>/i, `<head$1>${headInjection}`);

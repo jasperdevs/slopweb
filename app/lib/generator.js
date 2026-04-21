@@ -4,10 +4,11 @@ import path from 'node:path';
 import os from 'node:os';
 import { config, shouldTryAiSdk } from './config.js';
 import { sendNdjson, readJsonBody } from './http.js';
-import { makePrompt, makeJsonPrompt } from './prompts.js';
+import { makePrompt, makeSystemPrompt } from './prompts.js';
+import { loadAiSdkModel } from './aiSdkProvider.js';
 import { makeBuiltInPage, makeLocalGeneratedPage, makeMockPage } from './builtinPages.js';
-import { normalizeAddress, extractHtmlFromOutput, validateHtmlPagePayload, validatePagePayload, hardenPagePayload } from './html.js';
-import { sleep, withTimeout } from './utils.js';
+import { normalizeAddress, extractHtmlFromOutput, validateHtmlPagePayload, hardenPagePayload } from './html.js';
+import { sleep } from './utils.js';
 import { codexStatus } from './codexLauncher.js';
 
 export async function generatePage(body) {
@@ -20,7 +21,7 @@ export async function generatePage(body) {
   if (shouldTryAiSdk()) {
     try { return await generatePageWithAiSdk({ address, history: body.history }); }
     catch (error) {
-      if (config.aiProvider === 'ai-sdk') throw error;
+      if (['ai-sdk', 'local'].includes(config.aiProvider)) throw error;
       console.warn(`AI SDK generation failed, falling back to Codex CLI: ${error.message}`);
     }
   }
@@ -57,7 +58,7 @@ export async function handlePageStream(req, res) {
   };
 
   try {
-    safeSend({ type: 'start', address, mode: 'self-contained-html', model: config.codexModel });
+    safeSend({ type: 'start', address, mode: 'self-contained-html', model: shouldTryAiSdk() ? config.aiSdkModel : config.codexModel });
 
     const builtInPage = makeBuiltInPage(address);
     if (builtInPage) {
@@ -84,7 +85,7 @@ export async function handlePageStream(req, res) {
         return;
       } catch (error) {
         if (closed || error.name === 'AbortError') return;
-        if (config.aiProvider === 'ai-sdk') throw error;
+        if (['ai-sdk', 'local'].includes(config.aiProvider)) throw error;
         console.warn(`AI SDK streaming failed, falling back to Codex CLI: ${error.message}`);
         safeSend({ type: 'status', text: 'AI SDK failed, trying Codex' });
       }
@@ -144,55 +145,73 @@ function throwIfAborted(signal) {
   if (signal?.aborted) throw abortError();
 }
 
+function htmlStartIndex(text) {
+  const markers = [
+    /<!doctype\s+html/i,
+    /<html[\s>]/i,
+    /<head[\s>]/i,
+    /<body[\s>]/i
+  ];
+  for (const marker of markers) {
+    const index = String(text || '').search(marker);
+    if (index >= 0) return index;
+  }
+  return -1;
+}
+
+function emitReadyHtml(send, state, force = false) {
+  if (!state.streaming || !state.pending) return;
+  const tagBreak = state.pending.lastIndexOf('>');
+  const lineBreak = state.pending.lastIndexOf('\n');
+  let end = Math.max(tagBreak, lineBreak) + 1;
+  if (end <= 0 && (force || state.pending.length > 1024)) end = state.pending.length;
+  if (end <= 0) return;
+  send({ type: 'chunk', text: state.pending.slice(0, end) });
+  state.pending = state.pending.slice(end);
+}
+
 function streamVisibleHtml(send, state) {
   return text => {
     if (!text) return;
     state.raw += text;
+    state.pending += text;
     if (!state.streaming) {
-      state.pending += text;
-      const doctypeIndex = state.pending.search(/<!doctype\s+html/i);
-      if (doctypeIndex >= 0) {
+      const startIndex = htmlStartIndex(state.pending);
+      if (startIndex >= 0) {
         state.streaming = true;
         send({ type: 'reset', reason: 'model' });
-        send({ type: 'chunk', text: state.pending.slice(doctypeIndex) });
-        state.pending = '';
+        state.pending = state.pending.slice(startIndex);
+        emitReadyHtml(send, state);
       }
       return;
     }
-    send({ type: 'chunk', text });
+    emitReadyHtml(send, state);
   };
 }
 
+function flushVisibleHtml(send, state) {
+  emitReadyHtml(send, state, true);
+}
+
 async function streamAiSdkRawHtml({ address, history, safeSend, closedRef, signal }) {
-  if (!process.env.OPENAI_API_KEY) throw new Error('Vercel AI SDK mode needs OPENAI_API_KEY.');
   throwIfAborted(signal);
 
-  let ai;
-  let openaiProvider;
-  try {
-    ai = await import('ai');
-    openaiProvider = await import('@ai-sdk/openai');
-  } catch (error) {
-    throw new Error(`Vercel AI SDK streaming packages are not installed. Install ai, @ai-sdk/openai, and zod, or set AI_PROVIDER=codex. Details: ${error.message}`);
-  }
-
-  const { streamText } = ai;
-  const { openai } = openaiProvider;
-  if (typeof streamText !== 'function' || !openai) throw new Error('AI SDK streamText/openai exports were missing.');
-
-  const model = typeof openai.responses === 'function' ? openai.responses(config.aiSdkModel) : openai(config.aiSdkModel);
-  safeSend({ type: 'status', text: 'Streaming final HTML from AI SDK' });
+  const { streamText, model, label, providerOptions, timeout } = await loadAiSdkModel();
+  safeSend({ type: 'status', text: 'Generating page' });
 
   const state = { raw: '', pending: '', streaming: false };
   const push = streamVisibleHtml(safeSend, state);
 
-  const result = await withTimeout(streamText({
+  const result = streamText({
     model,
+    system: makeSystemPrompt(),
     prompt: makePrompt({ address, history }),
-    temperature: 0.35,
     maxOutputTokens: 18000,
-    abortSignal: signal
-  }), config.aiSdkTimeoutMs, 'Vercel AI SDK streaming generation');
+    maxRetries: 0,
+    abortSignal: signal,
+    timeout,
+    providerOptions
+  });
 
   for await (const delta of result.textStream) {
     if (closedRef()) throwIfAborted(signal);
@@ -200,7 +219,8 @@ async function streamAiSdkRawHtml({ address, history, safeSend, closedRef, signa
   }
 
   throwIfAborted(signal);
-  const page = validateHtmlPagePayload(extractHtmlFromOutput(state.raw), address, `${config.aiSdkModel} via Vercel AI SDK`);
+  flushVisibleHtml(safeSend, state);
+  const page = validateHtmlPagePayload(extractHtmlFromOutput(state.raw), address, label);
   page.address = address;
   if (!state.streaming) {
     safeSend({ type: 'reset', reason: 'model-final' });
@@ -210,34 +230,19 @@ async function streamAiSdkRawHtml({ address, history, safeSend, closedRef, signa
 }
 
 async function generatePageWithAiSdk({ address, history }) {
-  if (!process.env.OPENAI_API_KEY) throw new Error('Vercel AI SDK mode needs OPENAI_API_KEY.');
+  const { generateText, model, label, providerOptions, timeout } = await loadAiSdkModel();
 
-  let ai;
-  let openaiProvider;
-  let zod;
-  try {
-    ai = await import('ai');
-    openaiProvider = await import('@ai-sdk/openai');
-    zod = await import('zod');
-  } catch (error) {
-    throw new Error(`Vercel AI SDK packages are not installed. Install ai, @ai-sdk/openai, and zod, or set AI_PROVIDER=codex. Details: ${error.message}`);
-  }
-
-  const { generateObject } = ai;
-  const { openai } = openaiProvider;
-  const { z } = zod;
-  const schema = z.object({ title: z.string().min(1).max(120), summary: z.string().min(1).max(500), html: z.string().min(1) });
-  const model = typeof openai.responses === 'function' ? openai.responses(config.aiSdkModel) : openai(config.aiSdkModel);
-
-  const result = await withTimeout(generateObject({
+  const result = await generateText({
     model,
-    schema,
-    prompt: makeJsonPrompt({ address, history }),
-    temperature: 0.35,
-    maxOutputTokens: 18000
-  }), config.aiSdkTimeoutMs, 'Vercel AI SDK generation');
+    system: makeSystemPrompt(),
+    prompt: makePrompt({ address, history }),
+    maxOutputTokens: 18000,
+    maxRetries: 0,
+    timeout,
+    providerOptions
+  });
 
-  const page = validatePagePayload(result.object, address, `${config.aiSdkModel} via Vercel AI SDK`);
+  const page = validateHtmlPagePayload(extractHtmlFromOutput(result.text), address, label);
   page.address = address;
   return page;
 }

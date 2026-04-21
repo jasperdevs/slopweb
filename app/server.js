@@ -3,23 +3,14 @@ import { config, shouldTryAiSdk } from './lib/config.js';
 import { sendJson, sendText, readJsonBody, serveStatic } from './lib/http.js';
 import { generatePage, handlePageStream } from './lib/generator.js';
 import { codexStatus } from './lib/codexLauncher.js';
+import { aiSdkStatus } from './lib/aiSdkProvider.js';
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 
 async function authStatus() {
   if (shouldTryAiSdk()) {
-    if (!process.env.OPENAI_API_KEY) {
-      return { connected: false, mock: false, provider: 'ai-sdk', message: 'AI SDK mode needs OPENAI_API_KEY, or set AI_PROVIDER=codex to use Codex OAuth.' };
-    }
-    return {
-      connected: true,
-      mock: false,
-      provider: 'ai-sdk',
-      binary: 'Vercel AI SDK',
-      foundBinary: true,
-      message: `Using Vercel AI SDK with ${config.aiSdkModel}. Set AI_PROVIDER=codex to force local Codex OAuth.`,
-      code: 0
-    };
+    const local = await aiSdkStatus();
+    if (local.connected || config.aiProvider !== 'auto') return local;
   }
   return codexStatus();
 }
@@ -56,7 +47,8 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && url.pathname === '/api/health') {
-      sendJson(res, 200, { ok: true, version: config.version, model: config.codexModel, aiSdkModel: config.aiSdkModel, provider: config.aiProvider, mock: config.codexMock });
+      const status = await authStatus();
+      sendJson(res, 200, { ok: true, version: config.version, model: status.model || config.codexModel, localModel: status.provider === 'ai-sdk' ? status.model : '', localBaseUrl: status.baseUrl || config.aiSdkBaseUrl, provider: status.provider, mock: config.codexMock });
       return;
     }
 
@@ -92,7 +84,8 @@ const server = http.createServer(async (req, res) => {
 server.listen(config.port, config.host, () => {
   const displayHost = config.host === '0.0.0.0' || config.host === '127.0.0.1' ? 'localhost' : config.host;
   console.log(`Slopweb running at http://${displayHost}:${config.port}`);
-  console.log(`Model: ${config.codexModel}`);
   console.log(`Provider: ${config.aiProvider}`);
+  if (config.aiSdkModel) console.log(`Local model: ${config.aiSdkModel}`);
+  if (config.aiSdkBaseUrl) console.log(`AI base URL: ${config.aiSdkBaseUrl}`);
   console.log(`Host: ${config.host}${config.allowLan ? ' (LAN enabled)' : ' (local only)'}`);
 });

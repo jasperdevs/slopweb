@@ -20,6 +20,19 @@ http://localhost:8787
 ```
 
 Slopweb starts on `localhost` by default. If port `8787` is busy, it picks the next open port and prints the URL.
+Running `slopweb` in a terminal opens a launchpad where you can pick a detected local model, Codex OAuth, or a manual local endpoint.
+
+List detected local models:
+
+```powershell
+slopweb models
+```
+
+Use a local model directly:
+
+```powershell
+slopweb --base-url http://localhost:11434/v1 --model llama3.2
+```
 
 <details>
 <summary>Try without installing</summary>
@@ -37,7 +50,7 @@ pnpm dlx slopweb
 <details>
 <summary>Codex login</summary>
 
-Slopweb uses an existing `codex` command when it finds one, then falls back to `npx @openai/codex`.
+Slopweb uses local models through Vercel AI SDK. Codex CLI remains available for OAuth-based use.
 
 Connect Codex once:
 
@@ -57,6 +70,12 @@ Sign out:
 slopweb logout
 ```
 
+Run through Codex:
+
+```powershell
+slopweb --codex
+```
+
 </details>
 
 <details>
@@ -67,6 +86,11 @@ slopweb
 slopweb open
 slopweb --port 9000
 slopweb -p 9000 -o
+slopweb models
+slopweb --local --model llama3.2
+slopweb --base-url http://localhost:11434/v1 --model llama3.2
+slopweb --codex
+slopweb --no-picker
 slopweb --strict-port
 slopweb --mock
 slopweb --lan
@@ -95,16 +119,21 @@ Type these in the Slopweb address bar:
 </details>
 
 <details>
-<summary>AI SDK mode</summary>
+<summary>Model providers</summary>
 
-Use direct model output with an API key:
+Vercel AI SDK is included for local OpenAI-compatible servers. Slopweb does not use OpenAI API keys.
 
 ```powershell
-npm install -g ai @ai-sdk/openai zod
-$env:OPENAI_API_KEY="your_key_here"
-$env:AI_PROVIDER="ai-sdk"
+slopweb models
+```
+
+```powershell
+$env:SLOPWEB_BASE_URL="http://localhost:11434/v1"
+$env:SLOPWEB_MODEL="llama3.2"
 slopweb
 ```
+
+Auto-detection checks Ollama, LM Studio, llama.cpp/llamafile, vLLM, SGLang, Jan, text-generation-webui, and KoboldCpp. Custom local providers can be added in `%USERPROFILE%\.slopweb\models.json`.
 
 </details>
 
