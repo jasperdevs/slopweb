@@ -27,20 +27,20 @@ function takeFlag(name) {
 }
 
 function printHelp() {
-  console.log(`Genweb
+  console.log(`Slopweb
 
 Usage:
-  genweb [start] [--port 8787] [--host localhost] [--strict-port] [--open]
-  genweb login
-  genweb status
-  genweb logout
-  genweb doctor
+  slopweb [start] [--port 8787] [--host localhost] [--strict-port] [--open]
+  slopweb login
+  slopweb status
+  slopweb logout
+  slopweb doctor
 
 Examples:
-  genweb
-  genweb --port 9000 --open
-  genweb login
-  genweb status
+  slopweb
+  slopweb --port 9000 --open
+  slopweb login
+  slopweb status
 
 The server is local-only by default and opens at http://localhost:8787.`);
 }
@@ -57,7 +57,7 @@ if (args.includes('--version') || args.includes('-v')) {
 
 if (args[0] && !args[0].startsWith('-') && !COMMANDS.has(args[0])) {
   console.error(`Unknown command: ${args[0]}`);
-  console.error('Run `genweb --help` for usage.');
+  console.error('Run `slopweb --help` for usage.');
   process.exit(1);
 }
 
@@ -85,7 +85,7 @@ async function startServer() {
   const host = takeFlag('--host') || process.env.HOST || (lan ? '0.0.0.0' : 'localhost');
 
   if (mock) process.env.CODEX_MOCK = '1';
-  if (lan || host === '0.0.0.0') process.env.GENWEB_ALLOW_LAN = '1';
+  if (lan || host === '0.0.0.0') process.env.SLOPWEB_ALLOW_LAN = '1';
   if (!Number.isInteger(requestedPort) || requestedPort < 1 || requestedPort > 65535) {
     throw new Error(`Invalid port: ${requestedPort}`);
   }
@@ -186,7 +186,7 @@ async function showStatus() {
 }
 
 async function runDoctor() {
-  console.log('Genweb doctor');
+  console.log('Slopweb doctor');
   console.log(`Node: ${process.version}`);
   console.log(`Package: ${rootDir}`);
   console.log('Default URL: http://localhost:8787');

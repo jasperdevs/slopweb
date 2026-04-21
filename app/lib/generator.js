@@ -283,11 +283,11 @@ function makeCodexArgs(effort, workspace, outputPath = '') {
 
 async function generateWithCodexCapture({ address, history, signal }) {
   const runId = randomUUID();
-  const workspace = path.join(os.tmpdir(), `genweb-${runId}`);
+  const workspace = path.join(os.tmpdir(), `slopweb-${runId}`);
   const outputPath = path.join(workspace, 'page.html');
   throwIfAborted(signal);
   await mkdir(workspace, { recursive: true });
-  await writeFile(path.join(workspace, 'README.txt'), 'Empty throwaway workspace for Genweb page generation. Do not read local user files.\n');
+  await writeFile(path.join(workspace, 'README.txt'), 'Empty throwaway workspace for Slopweb page generation. Do not read local user files.\n');
 
   const prompt = makePrompt({ address, history });
   let lastErrorText = '';

@@ -125,7 +125,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     if (url.pathname.startsWith('/api/') && !isLocalApiRequest(req)) {
-      sendJson(res, 403, { error: 'Local API access is restricted to localhost. Set GENWEB_ALLOW_LAN=1 to opt in to LAN access.' });
+      sendJson(res, 403, { error: 'Local API access is restricted to localhost. Set SLOPWEB_ALLOW_LAN=1 to opt in to LAN access.' });
       return;
     }
 
@@ -170,7 +170,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(config.port, config.host, () => {
   const displayHost = config.host === '0.0.0.0' || config.host === '127.0.0.1' ? 'localhost' : config.host;
-  console.log(`Genweb running at http://${displayHost}:${config.port}`);
+  console.log(`Slopweb running at http://${displayHost}:${config.port}`);
   console.log(`Model: ${config.codexModel}`);
   console.log(`Provider: ${config.aiProvider}`);
   console.log(`Host: ${config.host}${config.allowLan ? ' (LAN enabled)' : ' (local only)'}`);

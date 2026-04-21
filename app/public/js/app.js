@@ -71,8 +71,8 @@ function finishLiveHtml() {
 function wireFrameNavigation() {
   let doc;
   try { doc = els.frame.contentDocument; } catch { return; }
-  if (!doc || doc.__genwebWired) return;
-  doc.__genwebWired = true;
+  if (!doc || doc.__slopwebWired) return;
+  doc.__slopwebWired = true;
 
   doc.addEventListener('click', event => {
     const link = event.target?.closest?.('a[href]');
@@ -106,7 +106,7 @@ function wireFrameNavigation() {
 }
 
 function renderFinalPage(page) {
-  document.title = `${page.title || 'Generated page'} · Genweb`;
+  document.title = `${page.title || 'Generated page'} · Slopweb`;
   if (els.activeTabTitle) els.activeTabTitle.textContent = page.title || 'Generated page';
   state.currentHtml = page.html || '';
   state.liveBuffer = page.html || state.liveBuffer;

@@ -1,16 +1,16 @@
 <p align="center">
-  <img src="./assets/logo.png" alt="Genweb logo" width="220" />
+  <img src="./assets/logo.png" alt="Slopweb logo" width="220" />
 </p>
 
-<h1 align="center">Genweb</h1>
+<h1 align="center">Slopweb</h1>
 
 <p align="center">A new web where AI generates every page.</p>
 
 ## Install
 
 ```powershell
-npm install -g genweb
-genweb
+npm install -g slopweb
+slopweb
 ```
 
 Open:
@@ -19,13 +19,13 @@ Open:
 http://localhost:8787
 ```
 
-Genweb starts on `localhost` by default. If port `8787` is busy, it picks the next open port and prints the URL.
+Slopweb starts on `localhost` by default. If port `8787` is busy, it picks the next open port and prints the URL.
 
 <details>
 <summary>Try without installing</summary>
 
 ```powershell
-npx genweb
+npx slopweb
 ```
 
 </details>
@@ -36,19 +36,19 @@ npx genweb
 Connect Codex once:
 
 ```powershell
-genweb login
+slopweb login
 ```
 
 Check status:
 
 ```powershell
-genweb status
+slopweb status
 ```
 
 Sign out:
 
 ```powershell
-genweb logout
+slopweb logout
 ```
 
 </details>
@@ -57,13 +57,13 @@ genweb logout
 <summary>CLI options</summary>
 
 ```powershell
-genweb
-genweb --port 9000
-genweb --open
-genweb --strict-port
-genweb --mock
-genweb --lan
-genweb doctor
+slopweb
+slopweb --port 9000
+slopweb --open
+slopweb --strict-port
+slopweb --mock
+slopweb --lan
+slopweb doctor
 ```
 
 `--lan` exposes the local server on your network. Keep the default for normal local use.
@@ -78,7 +78,7 @@ Use direct model streaming with an API key:
 ```powershell
 $env:OPENAI_API_KEY="your_key_here"
 $env:AI_PROVIDER="ai-sdk"
-genweb
+slopweb
 ```
 
 </details>

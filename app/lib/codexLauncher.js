@@ -311,8 +311,8 @@ export function spawnWithSpec(spec, options = {}) {
     shell: false,
     windowsHide: true
   });
-  child.genwebCommand = spec.label;
-  child.genwebSpec = spec;
+  child.slopwebCommand = spec.label;
+  child.slopwebSpec = spec;
   return child;
 }
 

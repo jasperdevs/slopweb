@@ -5,7 +5,7 @@ export function makePrompt({ address, history = [] }) {
     ? history.slice(-8).map(item => String(item).slice(0, 200))
     : [];
 
-  return `You are the raw HTML page compiler for a local app called Genweb.
+  return `You are the raw HTML page compiler for a local app called Slopweb.
 
 Task:
 Generate one complete, original, static HTML document for this synthetic browser address:
@@ -40,7 +40,7 @@ export function makeJsonPrompt({ address, history = [] }) {
     ? history.slice(-8).map(item => String(item).slice(0, 200))
     : [];
 
-  return `Generate a complete static HTML page for Genweb address ${address}.
+  return `Generate a complete static HTML page for Slopweb address ${address}.
 Return a JSON object with title, summary, and html. The html field must start with <!doctype html>.
 No JavaScript at all: no script tags, inline handlers, javascript: URLs, modules, imports, object/embed tags, or iframes.
 Use inline CSS only. No external dependencies or network calls.

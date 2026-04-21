@@ -1,6 +1,6 @@
-const HISTORY_KEY = 'genweb-history';
-const INDEX_KEY = 'genweb-index';
-const SOURCE_OPEN_KEY = 'genweb-source-open';
+const HISTORY_KEY = 'slopweb-history';
+const INDEX_KEY = 'slopweb-index';
+const SOURCE_OPEN_KEY = 'slopweb-source-open';
 
 function readHistory() {
   try {

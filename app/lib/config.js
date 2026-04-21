@@ -7,8 +7,8 @@ export const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
 
 export const config = Object.freeze({
   port: Number(process.env.PORT || 8787),
-  allowLan: process.env.GENWEB_ALLOW_LAN === '1',
-  host: process.env.HOST || (process.env.GENWEB_ALLOW_LAN === '1' ? '0.0.0.0' : 'localhost'),
+  allowLan: process.env.SLOPWEB_ALLOW_LAN === '1',
+  host: process.env.HOST || (process.env.SLOPWEB_ALLOW_LAN === '1' ? '0.0.0.0' : 'localhost'),
   codexBin: stripWrappingQuotes(process.env.CODEX_BIN || 'codex'),
   codexModel: process.env.CODEX_MODEL || 'gpt-5.3-codex-spark',
   codexReasoningEffort: process.env.CODEX_REASONING_EFFORT || 'low',
