@@ -2,9 +2,9 @@
 
 A local Chrome-like browser shell where synthetic addresses generate self-contained static HTML pages.
 
-## Run
+## Install
 
-From npm, after the package is published:
+After the root package is published to npm:
 
 ```powershell
 npx agenticweb
@@ -17,10 +17,11 @@ npm install
 npm start
 ```
 
-Or from this folder:
+For a permanent install:
 
 ```powershell
-npm start
+npm install -g agenticweb
+agenticweb
 ```
 
 Open:
@@ -36,7 +37,7 @@ This is the default mode. The app launches your local Codex CLI and uses the sam
 ```powershell
 npm i -g @openai/codex
 codex login
-npm start
+npx agenticweb
 ```
 
 ## Optional AI SDK streaming mode
@@ -44,10 +45,9 @@ npm start
 This path streams model text directly through the Vercel AI SDK. Install the optional deps and set an API key:
 
 ```powershell
-npm install
 $env:OPENAI_API_KEY="your_key_here"
 $env:AI_PROVIDER="ai-sdk"
-npm start
+npx agenticweb
 ```
 
 ## Notes
