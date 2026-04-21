@@ -21,6 +21,7 @@ const BANNER_LINES = [
   ' ╚══════╝ ╚══════╝  ╚═════╝  ╚═╝       ╚══╝╚══╝  ╚══════╝ ╚═════╝'
 ];
 const LOGO_COLORS = ['97;33;210', '19;31;159', '35;143;255', '35;139;255', '97;33;210', '19;31;159'];
+let interactiveScreenActive = false;
 
 function supportsColor() {
   return Boolean(process.stdout.isTTY && !process.env.NO_COLOR);
@@ -84,7 +85,8 @@ Examples:
 
 Terminal slash commands:
   /help       Show launcher commands
-  /models     Refresh detected local models
+  /model      Refresh detected local models
+  /models     Same as /model
   /status     Check local AI and Codex
   /login      Start Codex OAuth
   /codex      Use Codex OAuth
@@ -131,6 +133,15 @@ function normalizeInitialSlashCommand() {
   if (commandName === 'local') {
     args[0] = 'start';
     args.push('--local');
+    return;
+  }
+  if (commandName === 'manual') {
+    args[0] = 'start';
+    args.push('--manual');
+    return;
+  }
+  if (['quit', 'exit', 'q'].includes(commandName)) {
+    process.exit(0);
   }
 }
 
@@ -167,13 +178,14 @@ async function startServer(defaults = {}) {
   const skipPicker = hasFlag('--no-picker', '--yes');
   const forceLocal = hasFlag('--local') || hasFlag('--ai-sdk');
   const forceCodex = hasFlag('--codex');
+  const forceManual = hasFlag('--manual');
   const noAutostart = hasFlag('--no-autostart');
   const model = takeFlag('--model', '-m');
   const baseUrl = takeFlag('--base-url');
   const provider = takeFlag('--provider');
   const host = takeFlag('--host', '-H') || process.env.HOST || (lan ? '0.0.0.0' : 'localhost');
 
-  if (forceLocal && forceCodex) throw new Error('Use either --local or --codex, not both.');
+  if ([forceLocal, forceCodex, forceManual].filter(Boolean).length > 1) throw new Error('Use only one of --local, --codex, or --manual.');
   if (provider && !['auto', 'local', 'ai-sdk', 'codex'].includes(provider)) throw new Error('Provider must be auto, local, ai-sdk, or codex.');
   if (provider) process.env.SLOPWEB_PROVIDER = provider === 'ai-sdk' ? 'local' : provider;
   if (forceLocal) process.env.SLOPWEB_PROVIDER = 'local';
@@ -185,7 +197,21 @@ async function startServer(defaults = {}) {
   }
   rejectUnusedArgs('option');
 
-  const explicitGenerator = Boolean(forceLocal || forceCodex || provider || model || baseUrl || process.env.SLOPWEB_PROVIDER || process.env.AI_PROVIDER || process.env.SLOPWEB_BASE_URL || process.env.AI_SDK_BASE_URL);
+  if (forceManual) {
+    if (!process.stdin.isTTY || !process.stdout.isTTY) throw new Error('--manual requires an interactive terminal.');
+    enterInteractiveScreen();
+    try {
+      const manual = await promptManualEndpoint();
+      if (!manual) return;
+      process.env.SLOPWEB_PROVIDER = 'local';
+      process.env.SLOPWEB_BASE_URL = manual.baseUrl;
+      process.env.SLOPWEB_MODEL = manual.model;
+    } finally {
+      exitInteractiveScreen();
+    }
+  }
+
+  const explicitGenerator = Boolean(forceLocal || forceCodex || forceManual || provider || model || baseUrl || process.env.SLOPWEB_PROVIDER || process.env.AI_PROVIDER || process.env.SLOPWEB_BASE_URL || process.env.AI_SDK_BASE_URL);
   if (!explicitGenerator && !skipPicker && process.stdin.isTTY && process.stdout.isTTY && !process.env.CI) {
     await runLaunchPicker({ autostart: !noAutostart });
   }
@@ -301,11 +327,24 @@ function clearInteractiveScreen() {
   if (process.stdout.isTTY) process.stdout.write('\x1b[2J\x1b[H');
 }
 
+function enterInteractiveScreen() {
+  if (!process.stdout.isTTY || interactiveScreenActive) return;
+  process.stdout.write('\x1b[?1049h\x1b[2J\x1b[H\x1b[?25l');
+  interactiveScreenActive = true;
+}
+
+function exitInteractiveScreen() {
+  if (!interactiveScreenActive) return;
+  process.stdout.write('\x1b[?25h\x1b[?1049l');
+  interactiveScreenActive = false;
+}
+
 function launchCommandHelp() {
   return [
     'Launcher commands:',
     '  /help    Show this list',
-    '  /models  Refresh detected local models',
+    '  /model   Refresh detected local models',
+    '  /models  Same as /model',
     '  /status  Check local AI and Codex',
     '  /login   Start Codex OAuth',
     '  /codex   Use Codex OAuth',
@@ -314,11 +353,22 @@ function launchCommandHelp() {
   ].join('\n');
 }
 
+function renderInputBox(label, value = '', hint = '') {
+  const width = Math.min(78, Math.max(42, Number(process.stdout.columns || 80) - 6));
+  const title = ` ${label} `;
+  const top = `╭─${title}${'─'.repeat(Math.max(0, width - title.length - 1))}╮`;
+  const bottom = `╰${'─'.repeat(width)}╯`;
+  const raw = value || hint;
+  const visible = [...String(raw)].slice(-Math.max(0, width - 4)).join('');
+  const content = visible.padEnd(Math.max(0, width - 4), ' ');
+  return `${top}\n│ ${content} │\n${bottom}`;
+}
+
 function renderLaunchPicker({ choices, index, models, installed, commandBuffer, message }) {
   clearInteractiveScreen();
-  console.log(`${renderBanner()}\n\nLaunchpad`);
+  console.log(`${renderBanner()}\n\nSlopweb terminal`);
   if (models.length) {
-    console.log('Detected local models:');
+    console.log('Model selector');
   } else {
     console.log('No local models detected.');
     if (installed.length) console.log(`Installed runtimes: ${installed.map(item => item.name).join(', ')}`);
@@ -328,10 +378,12 @@ function renderLaunchPicker({ choices, index, models, installed, commandBuffer, 
     const pointer = choiceIndex === index ? color('›', '35;143;255') : ' ';
     console.log(`${pointer} ${choice.label}`);
   });
-  console.log('');
-  console.log(commandBuffer !== null
-    ? `${color('/', '35;143;255')} ${commandBuffer.slice(1)}`
-    : '↑/↓ select  Enter choose  / command');
+  console.log('\n' + renderInputBox(
+    'editor',
+    commandBuffer || '',
+    'Type /help, /model, /status, /login, /manual, /quit'
+  ));
+  console.log('↑/↓ select  Enter choose  Esc cancel input  Ctrl+C quit');
   if (message) console.log(`\n${message}`);
 }
 
@@ -346,7 +398,6 @@ function selectLaunchChoice(state) {
     const done = result => {
       stdin.off('data', onData);
       if (stdin.isTTY) stdin.setRawMode(Boolean(wasRaw));
-      process.stdout.write('\x1b[?25h');
       resolve(result);
     };
 
@@ -358,6 +409,7 @@ function selectLaunchChoice(state) {
     const onData = chunk => {
       const key = String(chunk);
       if (key === '\u0003') {
+        exitInteractiveScreen();
         process.stdout.write('\n');
         process.exit(130);
       }
@@ -399,8 +451,8 @@ function selectLaunchChoice(state) {
         done({ type: 'choice', choice: state.choices[index] });
         return;
       }
-      if (key === '/') {
-        commandBuffer = '/';
+      if (key === '/' || /^[\x20-\x7e]$/.test(key)) {
+        commandBuffer = key === '/' ? '/' : key;
         render();
       }
     };
@@ -413,13 +465,69 @@ function selectLaunchChoice(state) {
   });
 }
 
-async function promptText(question, fallback = '') {
+function readInputBox({ title, label, value = '', hint = '', message = '' }) {
+  return new Promise(resolve => {
+    const stdin = process.stdin;
+    const wasRaw = stdin.isRaw;
+    let text = String(value || '');
+
+    const cleanup = result => {
+      stdin.off('data', onData);
+      if (stdin.isTTY) stdin.setRawMode(Boolean(wasRaw));
+      resolve(result);
+    };
+
+    const render = () => {
+      clearInteractiveScreen();
+      console.log(`${renderBanner()}\n\n${title}`);
+      if (message) console.log(`\n${message}`);
+      console.log('\n' + renderInputBox(label, text, hint));
+      console.log('\nEnter accept  Esc back  Ctrl+C quit');
+    };
+
+    const onData = chunk => {
+      const key = String(chunk);
+      if (key === '\u0003') {
+        exitInteractiveScreen();
+        process.stdout.write('\n');
+        process.exit(130);
+      }
+      if (key === '\u001b') {
+        cleanup({ cancelled: true, value: text });
+        return;
+      }
+      if (key === '\r' || key === '\n') {
+        cleanup({ cancelled: false, value: text.trim() });
+        return;
+      }
+      if (key === '\u007f' || key === '\b') {
+        text = [...text].slice(0, -1).join('');
+        render();
+        return;
+      }
+      if (/^[\x20-\x7e]$/.test(key)) {
+        text += key;
+        render();
+      }
+    };
+
+    stdin.setEncoding('utf8');
+    if (stdin.isTTY) stdin.setRawMode(true);
+    stdin.resume();
+    stdin.on('data', onData);
+    render();
+  });
+}
+
+async function promptText(question) {
   const { createInterface } = await import('node:readline/promises');
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
-    return (await rl.question(question)).trim() || fallback;
+    process.stdout.write('\x1b[?25h');
+    return (await rl.question(question)).trim();
   } finally {
     rl.close();
+    process.stdout.write('\x1b[?25l');
   }
 }
 
@@ -451,53 +559,82 @@ async function runLaunchCommand(command) {
   return { message: `Unknown launcher command: /${name}\n${launchCommandHelp()}` };
 }
 
+async function promptManualEndpoint() {
+  const baseUrlInput = await readInputBox({
+    title: 'Manual local endpoint',
+    label: 'base url',
+    value: 'http://localhost:11434/v1',
+    message: 'Enter the OpenAI-compatible server URL.'
+  });
+  if (baseUrlInput.cancelled) return null;
+  const model = await readInputBox({
+    title: 'Manual local endpoint',
+    label: 'model id',
+    hint: 'llama3.2',
+    message: 'Enter the model id exposed by that server.'
+  });
+  if (model.cancelled || !model.value) return null;
+  return {
+    baseUrl: baseUrlInput.value || 'http://localhost:11434/v1',
+    model: model.value
+  };
+}
+
 async function runLaunchPicker(options = {}) {
   const { detectLocalModels, detectInstalledLocalRuntimes, LOCAL_MODELS_CONFIG } = await import('../app/lib/localModels.js');
   let message = '';
 
-  while (true) {
-    const models = await detectLocalModels();
-    const installed = detectInstalledLocalRuntimes();
-    const choices = models.slice(0, 9).map(model => ({
-      kind: 'local',
-      label: modelChoiceLabel(model),
-      model
-    }));
-    choices.push({ kind: 'codex', label: 'Codex OAuth' });
-    choices.push({ kind: 'manual', label: 'Manual local endpoint' });
+  enterInteractiveScreen();
+  try {
+    while (true) {
+      const models = await detectLocalModels();
+      const installed = detectInstalledLocalRuntimes();
+      const choices = models.slice(0, 9).map(model => ({
+        kind: 'local',
+        label: modelChoiceLabel(model),
+        model
+      }));
+      choices.push({ kind: 'codex', label: 'Codex OAuth' });
+      choices.push({ kind: 'manual', label: 'Manual local endpoint' });
 
-    if (!models.length && !message) message = `Custom local providers can live at ${LOCAL_MODELS_CONFIG}`;
-    const result = await selectLaunchChoice({ choices, models, installed, message });
-    message = '';
+      if (!models.length && !message) message = `Custom local providers can live at ${LOCAL_MODELS_CONFIG}`;
+      const result = await selectLaunchChoice({ choices, models, installed, message });
+      message = '';
 
-    let choice = result.choice;
-    if (result.type === 'command') {
-      const handled = await runLaunchCommand(result.command);
-      if (handled?.message) {
-        message = handled.message;
+      let choice = result.choice;
+      if (result.type === 'command') {
+        const handled = await runLaunchCommand(result.command);
+        if (handled?.message) {
+          message = handled.message;
+          continue;
+        }
+        if (!handled?.choice) continue;
+        choice = handled.choice;
+      }
+
+      if (choice.kind === 'local') {
+        const model = options.autostart === false ? choice.model : await startDetectedRuntime(choice.model);
+        process.env.SLOPWEB_PROVIDER = 'local';
+        process.env.SLOPWEB_BASE_URL = model.baseUrl;
+        process.env.SLOPWEB_MODEL = model.id;
+        return;
+      }
+      if (choice.kind === 'codex') {
+        process.env.SLOPWEB_PROVIDER = 'codex';
+        return;
+      }
+      const manual = await promptManualEndpoint();
+      if (!manual) {
+        message = 'Manual endpoint setup canceled.';
         continue;
       }
-      if (!handled?.choice) continue;
-      choice = handled.choice;
-    }
-
-    if (choice.kind === 'local') {
-      const model = options.autostart === false ? choice.model : await startDetectedRuntime(choice.model);
       process.env.SLOPWEB_PROVIDER = 'local';
-      process.env.SLOPWEB_BASE_URL = model.baseUrl;
-      process.env.SLOPWEB_MODEL = model.id;
+      process.env.SLOPWEB_BASE_URL = manual.baseUrl;
+      process.env.SLOPWEB_MODEL = manual.model;
       return;
     }
-    if (choice.kind === 'codex') {
-      process.env.SLOPWEB_PROVIDER = 'codex';
-      return;
-    }
-    const baseUrl = await promptText('OpenAI-compatible base URL [http://localhost:11434/v1]: ', 'http://localhost:11434/v1');
-    const model = await promptText('Model id: ');
-    if (!model) throw new Error('A local model id is required for a manual endpoint.');
-    process.env.SLOPWEB_PROVIDER = 'local';
-    process.env.SLOPWEB_BASE_URL = baseUrl;
-    process.env.SLOPWEB_MODEL = model;
+  } finally {
+    exitInteractiveScreen();
   }
 }
 

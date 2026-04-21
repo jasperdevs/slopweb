@@ -32,7 +32,7 @@ Open:
 http://localhost:8787
 ```
 
-Running `slopweb` in a terminal opens a launchpad for detected local models, Codex OAuth, or a manual local endpoint.
+Running `slopweb` in a terminal opens an arrow-key launchpad for detected local models, Codex OAuth, or a manual local endpoint. `🟢` means the model endpoint is already running; `🔴` means the model is installed and Slopweb can try to start it.
 
 ## Codex OAuth
 
@@ -67,6 +67,7 @@ Type these in the terminal launchpad:
 
 ```text
 /help
+/model
 /models
 /status
 /login

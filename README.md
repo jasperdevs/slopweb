@@ -20,7 +20,7 @@ http://localhost:8787
 ```
 
 Slopweb starts on `localhost` by default. If port `8787` is busy, it picks the next open port and prints the URL.
-Running `slopweb` in a terminal opens a launchpad where you can pick a detected local model, Codex OAuth, or a manual local endpoint.
+Running `slopweb` in a terminal opens an arrow-key launchpad where you can pick a detected local model, Codex OAuth, or a manual local endpoint. `🟢` means the model endpoint is already running; `🔴` means the model is installed and Slopweb can try to start it.
 
 List detected local models:
 
@@ -108,6 +108,7 @@ Type these in the terminal launchpad:
 
 ```text
 /help
+/model
 /models
 /status
 /login
