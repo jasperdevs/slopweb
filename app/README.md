@@ -71,9 +71,7 @@ Type these in the terminal launchpad:
 /model
 /models
 /status
-/login
 /codex
-/manual
 /quit
 ```
 

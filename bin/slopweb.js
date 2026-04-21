@@ -88,9 +88,7 @@ Terminal slash commands:
   /model      Refresh detected local models
   /models     Same as /model
   /status     Check local AI and Codex
-  /login      Start Codex OAuth
   /codex      Use Codex OAuth
-  /manual     Enter a local endpoint
   /quit       Exit
 
 Generation uses local OpenAI-compatible servers through Vercel AI SDK, or Codex through OAuth.
@@ -351,14 +349,11 @@ function exitInteractiveScreen() {
 
 function launchCommandHelp() {
   return [
-    'Launcher commands:',
+    'Commands:',
     '  /help    Show this list',
-    '  /model   Refresh detected local models',
-    '  /models  Same as /model',
+    '  /model   Refresh models',
     '  /status  Check local AI and Codex',
-    '  /login   Start Codex OAuth',
     '  /codex   Use Codex OAuth',
-    '  /manual  Enter a local endpoint',
     '  /quit    Exit'
   ].join('\n');
 }
@@ -368,22 +363,21 @@ function renderInputBox(value = '') {
   const top = `╭${'─'.repeat(width)}╮`;
   const bottom = `╰${'─'.repeat(width)}╯`;
   const visible = [...String(value || '')].slice(-Math.max(0, width - 5)).join('');
-  const content = `> ${visible}`.padEnd(Math.max(0, width - 2), ' ');
+  const cursor = supportsColor() ? '\x1b[5m \x1b[0m' : '_';
+  const content = `> ${visible}${cursor}`.padEnd(Math.max(0, width - 2), ' ');
   return `${top}\n│ ${content} │\n${bottom}`;
 }
 
 function renderLaunchPicker({ choices, index, models, installed, commandBuffer, message }) {
-  const lines = [`${renderBanner()}`, '', 'Slopweb terminal'];
-  if (models.length) {
-    lines.push('Type a command or choose a model.');
-  } else {
+  const lines = [`${renderBanner()}`];
+  if (!models.length) {
     lines.push('No local models detected.');
     if (installed.length) lines.push(`Installed runtimes: ${installed.map(item => item.name).join(', ')}`);
   }
   lines.push('', renderInputBox(commandBuffer || ''));
-  lines.push(color('hint:', '127;127;127') + ' /help  /model  /status  /login  /manual  /quit');
+  lines.push(color('hint:', '127;127;127') + ' /help  /model  /status  /codex  /quit');
   if (message) lines.push('', message);
-  lines.push('', 'Models');
+  lines.push('');
   choices.forEach((choice, choiceIndex) => {
     const pointer = choiceIndex === index ? color('›', '35;143;255') : ' ';
     lines.push(`${pointer} ${choice.label}`);
@@ -550,15 +544,7 @@ async function runLaunchCommand(command) {
     process.exitCode = 0;
     return {};
   }
-  if (name === 'login') {
-    clearInteractiveScreen();
-    await runCodex(['login', '--device-auth']);
-    await pauseForEnter();
-    process.exitCode = 0;
-    return {};
-  }
   if (name === 'codex') return { choice: { kind: 'codex', label: 'Codex OAuth' } };
-  if (name === 'manual') return { choice: { kind: 'manual', label: 'Manual local endpoint' } };
   if (name === 'quit' || name === 'exit' || name === 'q') process.exit(0);
   return { message: `Unknown launcher command: /${name}\n${launchCommandHelp()}` };
 }
