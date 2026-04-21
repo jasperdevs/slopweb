@@ -9,7 +9,8 @@
 ## Install
 
 ```powershell
-npx agenticweb
+npm install -g agenticweb
+agenticweb
 ```
 
 Open:
@@ -18,14 +19,16 @@ Open:
 http://localhost:8787
 ```
 
-For a permanent install:
+Agentic Web starts on `localhost` by default. If port `8787` is busy, it picks the next open port and prints the URL.
+
+<details>
+<summary>Try without installing</summary>
 
 ```powershell
-npm install -g agenticweb
-agenticweb
+npx agenticweb
 ```
 
-Agentic Web starts on `localhost` by default. If port `8787` is busy, it picks the next open port and prints the URL.
+</details>
 
 <details>
 <summary>Codex login</summary>
