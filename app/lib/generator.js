@@ -316,7 +316,7 @@ async function streamCodexRawHtml({ address, history, safeSend, closedRef, signa
   const page = await generateWithCodexCapture({ address, history, signal });
   throwIfAborted(signal);
   safeSend({ type: 'reset', reason: 'codex-final' });
-  await streamHtmlChunks(safeSend, page.html, { minChunk: 160, maxChunk: 620, delayMs: 0, shouldStop: () => closedRef() });
+  await streamHtmlChunks(safeSend, page.html, { minChunk: 72, maxChunk: 260, delayMs: 18, shouldStop: () => closedRef() });
   return page;
 }
 
