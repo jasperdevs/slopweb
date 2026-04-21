@@ -9,7 +9,7 @@
 ## Install
 
 ```powershell
-npm install -g genweb
+npm install -g @jasperdevs/genweb
 genweb
 ```
 
@@ -25,7 +25,7 @@ Genweb starts on `localhost` by default. If port `8787` is busy, it picks the ne
 <summary>Try without installing</summary>
 
 ```powershell
-npx genweb
+npx @jasperdevs/genweb
 ```
 
 </details>

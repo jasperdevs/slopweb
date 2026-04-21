@@ -1,5 +1,5 @@
 {
-  "name": "genweb",
+  "name": "@jasperdevs/genweb",
   "version": "1.0.0",
   "description": "A new web where every site is generated with AI.",
   "type": "module",
