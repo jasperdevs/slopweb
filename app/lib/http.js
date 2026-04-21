@@ -46,7 +46,7 @@ export async function readJsonBody(req, limitBytes = 64_000) {
 }
 
 export function sendNdjson(res, payload) {
-  res.write(`${JSON.stringify(payload)}\n`);
+  return res.write(`${JSON.stringify(payload)}\n`);
 }
 
 export async function serveStatic(req, res) {

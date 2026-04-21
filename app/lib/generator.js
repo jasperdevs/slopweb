@@ -48,11 +48,24 @@ export async function handlePageStream(req, res) {
     'X-Accel-Buffering': 'no'
   });
 
-  const safeSend = payload => { if (!closed) sendNdjson(res, payload); };
+  const safeSend = payload => closed ? false : sendNdjson(res, payload);
+  const waitForDrain = () => {
+    if (closed || !res.writableNeedDrain) return Promise.resolve();
+    return new Promise(resolve => {
+      const done = () => {
+        res.off('drain', done);
+        res.off('close', done);
+        resolve();
+      };
+      res.once('drain', done);
+      res.once('close', done);
+    });
+  };
+  safeSend.waitForDrain = waitForDrain;
   const reveal = async (page, options = {}) => {
     const finalPage = hardenPagePayload(page, address);
     safeSend({ type: 'reset', reason: options.reason || 'document' });
-    await streamHtmlChunks(safeSend, finalPage.html, { ...options, shouldStop: () => closed });
+    await streamHtmlChunks(safeSend, finalPage.html, { ...options, shouldStop: () => closed, waitForDrain });
     return finalPage;
   };
 
@@ -127,7 +140,7 @@ async function streamHtmlChunks(send, html, options = {}) {
     if (end <= index) end = index + maxChunk;
     const chunk = text.slice(index, Math.min(text.length, end));
     index += chunk.length;
-    send({ type: 'chunk', text: chunk });
+    if (send({ type: 'chunk', text: chunk }) === false && typeof options.waitForDrain === 'function') await options.waitForDrain();
     if (delayMs > 0) await sleep(delayMs);
   }
 }
@@ -222,7 +235,7 @@ async function streamAiSdkRawHtml({ address, history, safeSend, closedRef, signa
   page.address = address;
   if (!state.streaming) {
     safeSend({ type: 'reset', reason: 'model-final' });
-    await streamHtmlChunks(safeSend, page.html, { minChunk: 160, maxChunk: 620, delayMs: 0, shouldStop: () => closedRef() });
+    await streamHtmlChunks(safeSend, page.html, { minChunk: 160, maxChunk: 620, delayMs: 0, shouldStop: () => closedRef(), waitForDrain: () => safeSend.waitForDrain?.() });
   }
   return page;
 }
@@ -319,7 +332,7 @@ async function streamCodexRawHtml({ address, history, safeSend, closedRef, signa
   const page = await generateWithCodexCapture({ address, history, signal });
   throwIfAborted(signal);
   safeSend({ type: 'reset', reason: 'codex-final' });
-  await streamHtmlChunks(safeSend, page.html, { minChunk: 72, maxChunk: 260, delayMs: 18, shouldStop: () => closedRef() });
+  await streamHtmlChunks(safeSend, page.html, { minChunk: 72, maxChunk: 260, delayMs: 18, shouldStop: () => closedRef(), waitForDrain: () => safeSend.waitForDrain?.() });
   return page;
 }
 
