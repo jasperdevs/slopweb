@@ -169,8 +169,7 @@ function configuredSearchRoots() {
     path.join(os.homedir(), '.cache', 'lm-studio', 'models'),
     path.join(os.homedir(), '.cache', 'huggingface', 'hub'),
     path.join(os.homedir(), 'models'),
-    path.join(os.homedir(), 'Models'),
-    path.join(os.homedir(), 'Downloads')
+    path.join(os.homedir(), 'Models')
   ];
   return roots
     .flatMap(value => String(value || '').split(/[;,]/g))

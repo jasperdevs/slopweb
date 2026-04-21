@@ -15,7 +15,6 @@ export async function aiSdkStatus() {
   const connected = Boolean(resolved);
   return {
     connected,
-    mock: false,
     provider: 'ai-sdk',
     runtime: resolved?.providerId || 'local',
     binary: 'Vercel AI SDK',

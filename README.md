@@ -92,7 +92,6 @@ slopweb --base-url http://localhost:11434/v1 --model llama3.2
 slopweb --codex
 slopweb --no-picker
 slopweb --strict-port
-slopweb --mock
 slopweb --lan
 slopweb health
 slopweb doctor

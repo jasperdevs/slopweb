@@ -13,11 +13,12 @@ const VERSION = '1.0.0';
 
 const COMMANDS = new Set(['start', 'serve', 'dev', 'open', 'login', 'status', 'logout', 'doctor', 'health', 'models', 'help']);
 const BANNER_LINES = [
-  ' #####  #       ####   #####  #   #  ###### ##### ',
-  '#       #      #    #  #    # #   #  #      #    #',
-  ' ####   #      #    #  #####  # # #  #####  ##### ',
-  '     #  #      #    #  #      ## ##  #      #    #',
-  '#####   ######  ####   #      #   #  ###### ##### '
+  ' ███████╗ ██╗       ██████╗  ██████╗  ██╗    ██╗ ███████╗ ██████╗',
+  ' ██╔════╝ ██║      ██╔═══██╗ ██╔══██╗ ██║    ██║ ██╔════╝ ██╔══██╗',
+  ' ███████╗ ██║      ██║   ██║ ██████╔╝ ██║ █╗ ██║ █████╗   ██████╔╝',
+  ' ╚════██║ ██║      ██║   ██║ ██╔═══╝  ██║███╗██║ ██╔══╝   ██╔══██╗',
+  ' ███████║ ███████╗ ╚██████╔╝ ██║      ╚███╔███╔╝ ███████╗ ██████╔╝',
+  ' ╚══════╝ ╚══════╝  ╚═════╝  ╚═╝       ╚══╝╚══╝  ╚══════╝ ╚═════╝'
 ];
 
 function supportsColor() {
@@ -51,6 +52,11 @@ function takeFlag(...names) {
   const value = args[index + 1] || '';
   args.splice(index, 2);
   return value;
+}
+
+function rejectUnusedArgs(context) {
+  if (!args.length) return;
+  throw new Error(`Unknown ${context}: ${args.join(' ')}. Run \`slopweb --help\` for usage.`);
 }
 
 function printHelp() {
@@ -123,7 +129,6 @@ async function startServer(defaults = {}) {
   const strictPort = hasFlag('--strict-port');
   const openBrowser = hasFlag('--open', '-o') || Boolean(defaults.open);
   const lan = hasFlag('--lan');
-  const mock = hasFlag('--mock');
   const skipPicker = hasFlag('--no-picker', '--yes');
   const forceLocal = hasFlag('--local') || hasFlag('--ai-sdk');
   const forceCodex = hasFlag('--codex');
@@ -143,9 +148,9 @@ async function startServer(defaults = {}) {
     process.env.SLOPWEB_PROVIDER = 'local';
     process.env.SLOPWEB_BASE_URL = baseUrl;
   }
+  rejectUnusedArgs('option');
 
-  if (mock) process.env.CODEX_MOCK = '1';
-  const explicitGenerator = Boolean(forceLocal || forceCodex || provider || model || baseUrl || mock || process.env.SLOPWEB_PROVIDER || process.env.AI_PROVIDER || process.env.SLOPWEB_BASE_URL || process.env.AI_SDK_BASE_URL);
+  const explicitGenerator = Boolean(forceLocal || forceCodex || provider || model || baseUrl || process.env.SLOPWEB_PROVIDER || process.env.AI_PROVIDER || process.env.SLOPWEB_BASE_URL || process.env.AI_SDK_BASE_URL);
   if (!explicitGenerator && !skipPicker && process.stdin.isTTY && process.stdout.isTTY && !process.env.CI) {
     await runLaunchPicker({ autostart: !noAutostart });
   }
@@ -422,6 +427,7 @@ async function runDoctor() {
 async function checkHealth() {
   const port = Number(takeFlag('--port', '-p') || process.env.PORT || 8787);
   const host = takeFlag('--host', '-H') || process.env.HOST || 'localhost';
+  rejectUnusedArgs('option');
   const url = `http://${displayHost(host)}:${port}/api/health`;
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Health check failed: ${response.status}`);

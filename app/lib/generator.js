@@ -6,7 +6,7 @@ import { config, shouldTryAiSdk } from './config.js';
 import { sendNdjson, readJsonBody } from './http.js';
 import { makePrompt, makeSystemPrompt } from './prompts.js';
 import { loadAiSdkModel } from './aiSdkProvider.js';
-import { makeBuiltInPage, makeLocalGeneratedPage, makeMockPage } from './builtinPages.js';
+import { makeBuiltInPage, makeLocalGeneratedPage } from './builtinPages.js';
 import { normalizeAddress, extractHtmlFromOutput, validateHtmlPagePayload, hardenPagePayload } from './html.js';
 import { sleep } from './utils.js';
 import { codexStatus } from './codexLauncher.js';
@@ -15,8 +15,6 @@ export async function generatePage(body) {
   const address = normalizeAddress(body.address || body.url || body.q);
   const builtInPage = makeBuiltInPage(address);
   if (builtInPage) return hardenPagePayload(builtInPage, address);
-
-  if (config.codexMock) return hardenPagePayload(makeMockPage(address), address);
 
   if (shouldTryAiSdk()) {
     try { return await generatePageWithAiSdk({ address, history: body.history }); }
@@ -69,13 +67,6 @@ export async function handlePageStream(req, res) {
     }
 
     safeSend({ type: 'status', text: 'Waiting for generated HTML' });
-
-    if (config.codexMock) {
-      const page = await reveal(makeMockPage(address), { minChunk: 160, maxChunk: 620, delayMs: 0, reason: 'mock' });
-      safeSend({ type: 'done', page });
-      if (!closed) res.end();
-      return;
-    }
 
     if (shouldTryAiSdk()) {
       try {
@@ -326,18 +317,18 @@ async function streamCodexRawHtml({ address, history, safeSend, closedRef, signa
 }
 
 function authFallbackPage(address, history, status) {
-  const mock = makeLocalGeneratedPage(address, history, [
+  const page = makeLocalGeneratedPage(address, history, [
     status.message,
     status.binary && `Binary: ${status.binary}`,
     status.error && `Error: ${status.error}`,
     Array.isArray(status.candidates) && status.candidates.length ? `Checked paths:\n${status.candidates.slice(0, 12).join('\n')}` : ''
   ].filter(Boolean).join('\n\n'));
-  mock.authRequired = true;
-  mock.authMessage = [
+  page.authRequired = true;
+  page.authMessage = [
     status.message,
     status.binary && `Binary: ${status.binary}`,
     status.error && `Error: ${status.error}`,
     Array.isArray(status.candidates) && status.candidates.length ? `Checked paths:\n${status.candidates.slice(0, 12).join('\n')}` : ''
   ].filter(Boolean).join('\n\n');
-  return hardenPagePayload(mock, address);
+  return hardenPagePayload(page, address);
 }

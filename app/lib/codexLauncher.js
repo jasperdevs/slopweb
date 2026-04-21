@@ -446,7 +446,6 @@ export async function spawnCapture(command, args, options = {}) {
 }
 
 export async function codexStatus() {
-  if (config.codexMock) return { connected: false, mock: true, provider: 'mock', message: 'Mock mode is on. Set CODEX_MOCK=0 or unset it to use Codex.' };
   if (codexStatusCache && Date.now() - codexStatusCache.createdAt < CODEX_STATUS_CACHE_MS) return codexStatusCache.status;
 
   const resolved = resolveCodexBin(config.codexBin);
@@ -455,13 +454,12 @@ export async function codexStatus() {
     const rawMessage = (result.stdout || result.stderr || '').trim();
     const hardCommandFailure = result.code !== 0 && isLauncherFailureText(rawMessage);
     const connected = !hardCommandFailure && (result.code === 0 || process.env.CODEX_SKIP_AUTH_CHECK === '1' || hasLocalCodexAuthFile());
-    const status = { connected, mock: false, provider: 'codex', binary: result.command || resolved.label, foundBinary: resolved.found, message: rawMessage || (connected ? 'Codex is connected.' : 'Codex is not connected.'), code: result.code };
+    const status = { connected, provider: 'codex', binary: result.command || resolved.label, foundBinary: resolved.found, message: rawMessage || (connected ? 'Codex is connected.' : 'Codex is not connected.'), code: result.code };
     codexStatusCache = { createdAt: Date.now(), status };
     return status;
   } catch (error) {
     const status = {
       connected: false,
-      mock: false,
       provider: 'codex',
       binary: error.codexCommand || resolved.label,
       foundBinary: resolved.found,

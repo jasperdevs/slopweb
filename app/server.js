@@ -48,7 +48,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/api/health') {
       const status = await authStatus();
-      sendJson(res, 200, { ok: true, version: config.version, model: status.model || config.codexModel, localModel: status.provider === 'ai-sdk' ? status.model : '', localBaseUrl: status.baseUrl || config.aiSdkBaseUrl, provider: status.provider, mock: config.codexMock });
+      sendJson(res, 200, { ok: true, version: config.version, model: status.model || config.codexModel, localModel: status.provider === 'ai-sdk' ? status.model : '', localBaseUrl: status.baseUrl || config.aiSdkBaseUrl, provider: status.provider });
       return;
     }
 

@@ -15,7 +15,6 @@ export const config = Object.freeze({
   codexModel: process.env.CODEX_MODEL || 'gpt-5.3-codex-spark',
   codexReasoningEffort: process.env.CODEX_REASONING_EFFORT || 'low',
   codexTimeoutMs: Number(process.env.CODEX_TIMEOUT_MS || 120_000),
-  codexMock: process.env.CODEX_MOCK === '1',
   aiProvider: (process.env.SLOPWEB_PROVIDER || process.env.AI_PROVIDER || 'auto').toLowerCase(),
   aiSdkModel: process.env.SLOPWEB_MODEL || process.env.AI_SDK_MODEL || '',
   aiSdkBaseUrl: stripWrappingQuotes(process.env.SLOPWEB_BASE_URL || process.env.AI_SDK_BASE_URL || ''),

@@ -62,7 +62,6 @@ async function checkAuth() {
   try {
     const data = await checkAuthStatus();
     if (data.connected) setStatus('good', data.provider === 'ai-sdk' ? 'Local AI ready' : 'Codex ready');
-    else if (data.mock) setStatus('warn', 'Mock mode');
     else setStatus('bad', data.provider === 'ai-sdk' ? 'Local AI needed' : 'Login needed');
     return data;
   } catch {
