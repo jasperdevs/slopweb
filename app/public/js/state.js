@@ -49,6 +49,8 @@ export const state = {
   abortController: null,
   liveBuffer: active.source || active.html,
   liveRenderQueued: false,
+  renderFrameQueued: false,
+  sourceRenderQueued: false,
   sourceOpen: true
 };
 
@@ -81,6 +83,8 @@ export function activateTab(id) {
   state.currentHtml = tab.html || '';
   state.liveBuffer = tab.source || tab.html || '';
   state.liveRenderQueued = false;
+  state.renderFrameQueued = false;
+  state.sourceRenderQueued = false;
   saveHistory();
   return tab;
 }

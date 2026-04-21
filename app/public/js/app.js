@@ -74,25 +74,33 @@ async function checkAuth() {
 function resetLiveDocument(reason = 'document') {
   state.liveBuffer = '';
   state.liveRenderQueued = false;
+  state.sourceRenderQueued = false;
+  state.renderFrameQueued = false;
   els.sourceStatus.textContent = 'waiting';
   renderSource(els.liveSource, els.sourceStatus, '');
   setLiveMode(true, reason === 'model' || reason === 'codex-final' ? 'receiving html' : 'waiting');
   els.frame.srcdoc = composeSrcdoc('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Loading</title><style>html,body{margin:0;min-height:100%;background:#fff;font-family:Arial,sans-serif;color:#202124}</style></head><body></body></html>');
 }
 
-function scheduleLiveRender() {
-  if (state.liveRenderQueued) return;
-  state.liveRenderQueued = true;
+function scheduleLiveRender({ source = true, frame = true } = {}) {
+  state.sourceRenderQueued ||= source;
+  state.liveRenderQueued ||= frame;
+  if (state.renderFrameQueued) return;
+  state.renderFrameQueued = true;
   requestAnimationFrame(() => {
+    const shouldRenderSource = state.sourceRenderQueued;
+    const shouldRenderFrame = state.liveRenderQueued;
+    state.renderFrameQueued = false;
+    state.sourceRenderQueued = false;
     state.liveRenderQueued = false;
-    els.frame.srcdoc = composeSrcdoc(state.liveBuffer);
+    if (shouldRenderSource) renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
+    if (shouldRenderFrame) els.frame.srcdoc = composeSrcdoc(state.liveBuffer);
   });
 }
 
 function appendLiveHtml(chunk) {
   if (!chunk) return;
   state.liveBuffer += chunk;
-  renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
   scheduleLiveRender();
 }
 
@@ -111,43 +119,6 @@ function finishLiveHtml() {
   els.sourceStatus.textContent = state.liveBuffer ? 'done' : 'idle';
 }
 
-function wireFrameNavigation() {
-  let doc;
-  try { doc = els.frame.contentDocument; } catch { return; }
-  if (!doc || doc.__slopwebWired) return;
-  doc.__slopwebWired = true;
-
-  doc.addEventListener('click', event => {
-    const link = event.target?.closest?.('a[href]');
-    if (!link) return;
-    const href = link.getAttribute('href');
-    const next = normalizeInput(href, state.entries[state.index]);
-    if (!next) return;
-    event.preventDefault();
-    navigate(next);
-  }, true);
-
-  doc.addEventListener('submit', event => {
-    const form = event.target;
-    if (!form || form.tagName !== 'FORM') return;
-    event.preventDefault();
-    const params = new URLSearchParams(new FormData(form));
-    const action = form.getAttribute('action') || 'synthetic://search';
-    const method = (form.getAttribute('method') || 'get').toLowerCase();
-    const suffix = params.toString();
-    const href = method === 'get' && suffix ? action + (action.includes('?') ? '&' : '?') + suffix : action;
-    const next = normalizeInput(href, state.entries[state.index]);
-    if (next) navigate(next);
-  }, true);
-
-  doc.addEventListener('keydown', event => {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'l') {
-      event.preventDefault();
-      focusAddress();
-    }
-  });
-}
-
 window.addEventListener('message', event => {
   if (event.source !== els.frame.contentWindow) return;
   if (event.data?.type !== 'slopweb:navigate') return;
@@ -163,7 +134,6 @@ function renderFinalPage(page) {
   renderTabs({ activate: switchTab, close: closeExistingTab });
   renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
   els.frame.srcdoc = composeSrcdoc(page.html || state.liveBuffer || '');
-  window.setTimeout(wireFrameNavigation, 80);
 }
 
 export async function navigate(rawAddress, options = {}) {
@@ -249,7 +219,6 @@ function showAuthCommands(message = 'Codex login needed.') {
   els.authLog.textContent = `${message}\n\nRun in your terminal:\nslopweb login\nslopweb status`;
 }
 
-els.frame.addEventListener('load', wireFrameNavigation);
 function clearHistory() {
   state.entries = [];
   state.index = -1;
@@ -273,7 +242,6 @@ function renderActiveTab() {
   renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
   if (state.currentHtml) {
     els.frame.srcdoc = composeSrcdoc(state.currentHtml);
-    window.setTimeout(wireFrameNavigation, 80);
   } else {
     navigate('synthetic://home', { push: false, index: 0 });
   }
