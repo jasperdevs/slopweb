@@ -17,7 +17,7 @@ npm install -g slopweb
 slopweb
 ```
 
-Open the printed local URL. Press `Ctrl+C` to stop the server.
+Choose a detected local model or Codex in the terminal picker, then open the printed local URL. Press `Ctrl+C` to stop the server.
 
 <details>
 <summary>Local models</summary>
@@ -27,6 +27,8 @@ Slopweb works with local OpenAI-compatible model servers and detects common loca
 ```powershell
 slopweb models
 ```
+
+Use a specific endpoint when auto-detection is not enough:
 
 ```powershell
 slopweb --base-url http://localhost:11434/v1 --model llama3.2

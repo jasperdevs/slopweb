@@ -6,7 +6,9 @@ import path from 'node:path';
 export const LOCAL_MODELS_CONFIG = path.join(os.homedir(), '.slopweb', 'models.json');
 
 const DETECT_TIMEOUT_MS = Number(process.env.SLOPWEB_DETECT_TIMEOUT_MS || 700);
+const DETECT_CACHE_MS = Number(process.env.SLOPWEB_DETECT_CACHE_MS || 5_000);
 const MAX_MODEL_FILES = 80;
+let localModelsCache = null;
 
 const OPENAI_COMPAT_PROBES = [
   { providerId: 'lmstudio', name: 'LM Studio', baseUrl: process.env.LMSTUDIO_BASE_URL || process.env.LM_STUDIO_BASE_URL || 'http://127.0.0.1:1234/v1' },
@@ -319,7 +321,27 @@ async function detectModelCatalog() {
   return [...ollamaCli, ...ollamaManifests, ...ggufModels];
 }
 
-export async function detectLocalModels() {
+function localModelsCacheKey() {
+  return [
+    process.env.SLOPWEB_BASE_URLS,
+    process.env.SLOPWEB_MODEL_DIRS,
+    process.env.SLOPWEB_BASE_URL,
+    process.env.AI_SDK_BASE_URL,
+    process.env.SLOPWEB_MODEL,
+    process.env.AI_SDK_MODEL,
+    process.env.OLLAMA_HOST
+  ].map(value => String(value || '')).join('\n');
+}
+
+function sortDetectedModels(models) {
+  return [...models].sort((a, b) => {
+    if (a.live !== b.live) return a.live ? -1 : 1;
+    if (a.source !== b.source) return a.source === 'detected' ? -1 : 1;
+    return `${a.providerName} ${a.id}`.localeCompare(`${b.providerName} ${b.id}`);
+  });
+}
+
+async function scanLocalModels() {
   const configured = configuredProviders(await readLocalModelsConfig());
   const configuredModels = configured.flatMap(provider => provider.models);
   const configuredProviderIds = new Set(configured.map(provider => provider.providerId.toLowerCase()));
@@ -337,7 +359,29 @@ export async function detectLocalModels() {
     Promise.all(probes).then(results => results.flat()),
     detectModelCatalog()
   ]);
-  return dedupeModels([...configuredModels, ...detected, ...catalog]);
+  return sortDetectedModels(dedupeModels([...configuredModels, ...detected, ...catalog]));
+}
+
+export async function detectLocalModels(options = {}) {
+  const key = localModelsCacheKey();
+  const now = Date.now();
+  if (options.cache !== false && localModelsCache?.key === key) {
+    if (localModelsCache.value && localModelsCache.expiresAt > now) return localModelsCache.value;
+    if (localModelsCache.promise) return localModelsCache.promise;
+  }
+
+  const promise = scanLocalModels()
+    .then(models => {
+      localModelsCache = { key, value: models, expiresAt: Date.now() + DETECT_CACHE_MS, promise: null };
+      return models;
+    })
+    .catch(error => {
+      if (localModelsCache?.promise === promise) localModelsCache = null;
+      throw error;
+    });
+
+  localModelsCache = { key, value: null, expiresAt: 0, promise };
+  return promise;
 }
 
 function modelMatches(model, requested) {

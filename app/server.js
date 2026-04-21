@@ -6,8 +6,28 @@ import { codexStatus } from './lib/codexLauncher.js';
 import { aiSdkStatus, warmLocalModel } from './lib/aiSdkProvider.js';
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+const AUTH_STATUS_CACHE_MS = 2_500;
+let authStatusCache = null;
 
 async function authStatus() {
+  const now = Date.now();
+  if (authStatusCache?.value && authStatusCache.expiresAt > now) return authStatusCache.value;
+  if (authStatusCache?.promise) return authStatusCache.promise;
+
+  const promise = resolveAuthStatus()
+    .then(status => {
+      authStatusCache = { value: status, expiresAt: Date.now() + AUTH_STATUS_CACHE_MS, promise: null };
+      return status;
+    })
+    .catch(error => {
+      if (authStatusCache?.promise === promise) authStatusCache = null;
+      throw error;
+    });
+  authStatusCache = { value: null, expiresAt: 0, promise };
+  return promise;
+}
+
+async function resolveAuthStatus() {
   if (shouldTryAiSdk()) {
     const local = await aiSdkStatus();
     if (local.connected) warmLocalModel().catch(() => {});

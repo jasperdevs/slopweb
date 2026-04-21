@@ -168,11 +168,48 @@ function highlightLine(line, mode = 'html') {
   return html;
 }
 
+function shouldIndentAfter(line) {
+  return /^<([a-z][\w-]*)(?:\s[^>]*)?>$/i.test(line)
+    && !/^<(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b/i.test(line);
+}
+
+function formatSourceForDisplay(rawHtml) {
+  const raw = String(rawHtml || '');
+  if (!raw.trim()) return '';
+
+  const normalized = raw
+    .replace(/>\s+</g, '>\n<')
+    .replace(/(<\/(?:style|script)\s*>)/gi, '$1\n')
+    .replace(/(<(?:style|script)\b[^>]*>)/gi, '\n$1\n');
+
+  let indent = 0;
+  let rawTextMode = false;
+  const output = [];
+  for (const sourceLine of normalized.split('\n')) {
+    const line = sourceLine.trim();
+    if (!line) continue;
+
+    if (/^<\/(style|script)\s*>/i.test(line)) rawTextMode = false;
+    if (!rawTextMode && /^<\//.test(line)) indent = Math.max(0, indent - 1);
+
+    output.push(`${'  '.repeat(rawTextMode ? indent : Math.max(0, indent))}${line}`);
+
+    if (/^<(style|script)\b/i.test(line) && !/<\/(style|script)\s*>/i.test(line)) {
+      rawTextMode = true;
+      indent += 1;
+      continue;
+    }
+    if (!rawTextMode && shouldIndentAfter(line)) indent += 1;
+  }
+  return output.join('\n');
+}
+
 export function renderSource(sourceEl, statusEl, rawHtml, maxChars = 80000) {
   const fullText = String(rawHtml || '');
-  const text = fullText.length > maxChars
+  const sourceText = fullText.length > maxChars
     ? `... trimmed ${fullText.length - maxChars} chars ...\n${fullText.slice(-maxChars)}`
     : fullText;
+  const text = formatSourceForDisplay(sourceText);
   const lines = text.split('\n');
   let mode = 'html';
   sourceEl.innerHTML = lines.map((line, index) => {

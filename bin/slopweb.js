@@ -2,6 +2,7 @@
 
 import net from 'node:net';
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -9,7 +10,7 @@ import { createRequire } from 'node:module';
 const args = process.argv.slice(2);
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const require = createRequire(import.meta.url);
-const VERSION = '1.0.0';
+const VERSION = readPackageVersion();
 
 const COMMANDS = new Set(['start', 'serve', 'dev', 'open', 'login', 'status', 'logout', 'doctor', 'health', 'models', 'help']);
 const BANNER_LINES = [
@@ -22,6 +23,15 @@ const BANNER_LINES = [
 ];
 const LOGO_COLORS = ['97;33;210', '19;31;159', '35;143;255', '35;139;255', '97;33;210', '19;31;159'];
 let interactiveScreenActive = false;
+let lastInteractiveFrame = [];
+
+function readPackageVersion() {
+  try {
+    return JSON.parse(readFileSync(resolve(rootDir, 'package.json'), 'utf8')).version || '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
 
 function supportsColor() {
   return Boolean(process.stdout.isTTY && !process.env.NO_COLOR);
@@ -182,6 +192,7 @@ async function startServer(defaults = {}) {
   process.env.HOST = host;
   process.env.SLOPWEB_VERSION = VERSION;
   if (process.stdout.isTTY) process.env.SLOPWEB_SUPPRESS_SERVER_LOGS = '1';
+  if (shouldWarmLocalProvider()) warmLocalProvider().catch(() => {});
   process.chdir(resolve(rootDir, 'app'));
   await import('../app/server.js');
   renderRunningScreen({ host, port });
@@ -220,6 +231,16 @@ function openUrl(url) {
   const [cmd, cmdArgs] = commandByPlatform[process.platform] || commandByPlatform.linux;
   const child = spawn(cmd, cmdArgs, { stdio: 'ignore', detached: true });
   child.unref();
+}
+
+function shouldWarmLocalProvider() {
+  const providerName = String(process.env.SLOPWEB_PROVIDER || process.env.AI_PROVIDER || '').toLowerCase();
+  return ['local', 'ai-sdk'].includes(providerName) || Boolean(process.env.SLOPWEB_BASE_URL || process.env.AI_SDK_BASE_URL);
+}
+
+async function warmLocalProvider() {
+  const { warmLocalModel } = await import('../app/lib/aiSdkProvider.js');
+  return warmLocalModel();
 }
 
 function renderRunningScreen({ host, port }) {
@@ -308,7 +329,10 @@ async function startDetectedRuntime(model) {
 }
 
 function clearInteractiveScreen() {
-  if (process.stdout.isTTY) process.stdout.write('\x1b[2J\x1b[H');
+  if (process.stdout.isTTY) {
+    lastInteractiveFrame = [];
+    process.stdout.write('\x1b[2J\x1b[H');
+  }
 }
 
 function writeInteractiveFrame(text, cursorPosition = null) {
@@ -316,18 +340,32 @@ function writeInteractiveFrame(text, cursorPosition = null) {
     process.stdout.write(`${text}\n`);
     return;
   }
-  process.stdout.write(`\x1b[H${text}\x1b[J`);
+  const nextLines = String(text).split('\n');
+  const chunks = ['\x1b[?25l'];
+  const maxLines = Math.max(lastInteractiveFrame.length, nextLines.length);
+  for (let index = 0; index < maxLines; index += 1) {
+    const next = nextLines[index] || '';
+    if (lastInteractiveFrame[index] === next && index < nextLines.length) continue;
+    chunks.push(`\x1b[${index + 1};1H\x1b[2K${next}`);
+  }
+  if (nextLines.length < lastInteractiveFrame.length) {
+    chunks.push(`\x1b[${nextLines.length + 1};1H\x1b[J`);
+  }
+  lastInteractiveFrame = nextLines;
+  process.stdout.write(chunks.join(''));
   if (cursorPosition) process.stdout.write(`\x1b[${cursorPosition.row};${cursorPosition.column}H\x1b[?25h`);
 }
 
 function enterInteractiveScreen() {
   if (!process.stdout.isTTY || interactiveScreenActive) return;
   process.stdout.write('\x1b[?1049h\x1b[2J\x1b[H\x1b[?25l');
+  lastInteractiveFrame = [];
   interactiveScreenActive = true;
 }
 
 function exitInteractiveScreen() {
   if (!interactiveScreenActive) return;
+  lastInteractiveFrame = [];
   process.stdout.write('\x1b[?25h\x1b[?1049l');
   interactiveScreenActive = false;
 }
@@ -348,6 +386,11 @@ function inputBoxWidth() {
 function inputCursorColumn(value = '') {
   const visibleChars = [...String(value || '')].slice(-Math.max(0, inputBoxWidth() - 5)).length;
   return 5 + visibleChars;
+}
+
+function rowForFrameLine(lines, lineIndex) {
+  const before = lines.slice(0, lineIndex).join('\n');
+  return before ? before.split('\n').length + 1 : 1;
 }
 
 function normalizedSearchText(value) {
@@ -373,6 +416,13 @@ function filteredChoices(choices, query) {
   return choices.filter(choice => terms.every(term => choiceSearchText(choice).includes(term)));
 }
 
+function sortedModels(models) {
+  return [...models].sort((a, b) => {
+    if (a.live !== b.live) return a.live ? -1 : 1;
+    return `${a.providerName} ${a.id}`.localeCompare(`${b.providerName} ${b.id}`);
+  });
+}
+
 function renderLaunchPicker({ choices, index, models, installed, commandBuffer, message }) {
   const visibleChoices = filteredChoices(choices, commandBuffer);
   const safeIndex = visibleChoices.length ? Math.min(index, visibleChoices.length - 1) : 0;
@@ -381,8 +431,8 @@ function renderLaunchPicker({ choices, index, models, installed, commandBuffer, 
     lines.push('No local models detected.');
     if (installed.length) lines.push(`Installed runtimes: ${installed.map(item => item.name).join(', ')}`);
   }
+  const inputLineIndex = lines.length + 1;
   lines.push('', renderInputBox(commandBuffer || ''));
-  const inputTopRow = lines.length - 1;
   if (message) lines.push('', message);
   if (commandBuffer && !visibleChoices.length) lines.push('', `No matches for "${commandBuffer}".`);
   lines.push('');
@@ -391,7 +441,12 @@ function renderLaunchPicker({ choices, index, models, installed, commandBuffer, 
     lines.push(`${pointer} ${choice.label}`);
   });
   lines.push('', 'Type to filter  ↑/↓ select  Enter choose  Esc clear  Ctrl+C quit');
-  writeInteractiveFrame(lines.join('\n'), { row: inputTopRow + 2, column: inputCursorColumn(commandBuffer) });
+  writeInteractiveFrame(lines.join('\n'), { row: rowForFrameLine(lines, inputLineIndex) + 1, column: inputCursorColumn(commandBuffer) });
+}
+
+function renderLaunchLoading(message = 'Scanning local models') {
+  const lines = [renderBanner(), '', renderInputBox(''), '', message, '', 'Ctrl+C quit'];
+  writeInteractiveFrame(lines.join('\n'), { row: rowForFrameLine(lines, 2) + 1, column: inputCursorColumn('') });
 }
 
 function selectLaunchChoice(state) {
@@ -399,7 +454,7 @@ function selectLaunchChoice(state) {
     const stdin = process.stdin;
     const wasRaw = stdin.isRaw;
     let index = 0;
-    let commandBuffer = null;
+    let commandBuffer = '';
     let message = state.message || '';
 
     const done = result => {
@@ -421,36 +476,6 @@ function selectLaunchChoice(state) {
         process.stdout.write('\n');
         process.exit(130);
       }
-      if (commandBuffer !== null) {
-        if (key === '\u001b') {
-          commandBuffer = null;
-          message = state.message || '';
-          render();
-          return;
-        }
-        if (key === '\r' || key === '\n') {
-          const visibleChoices = filteredChoices(state.choices, commandBuffer);
-          if (visibleChoices.length) done({ type: 'choice', choice: visibleChoices[Math.min(index, visibleChoices.length - 1)] });
-          else {
-            message = `No matches for "${commandBuffer}".`;
-            render();
-          }
-          return;
-        }
-        if (key === '\u007f' || key === '\b') {
-          commandBuffer = commandBuffer.length > 1 ? commandBuffer.slice(0, -1) : null;
-          index = 0;
-          render();
-          return;
-        }
-        if (/^[\x20-\x7e]$/.test(key)) {
-          commandBuffer += key;
-          index = 0;
-          render();
-        }
-        return;
-      }
-
       if (key === '\u001b[A' || key.toLowerCase() === 'k') {
         const visibleChoices = filteredChoices(state.choices, commandBuffer);
         if (!visibleChoices.length) {
@@ -471,6 +496,15 @@ function selectLaunchChoice(state) {
         render();
         return;
       }
+      if (key === '\u001b') {
+        if (commandBuffer) {
+          commandBuffer = '';
+          index = 0;
+          message = state.message || '';
+          render();
+        }
+        return;
+      }
       if (key === '\r' || key === '\n') {
         const visibleChoices = filteredChoices(state.choices, commandBuffer);
         if (visibleChoices.length) done({ type: 'choice', choice: visibleChoices[Math.min(index, visibleChoices.length - 1)] });
@@ -480,8 +514,15 @@ function selectLaunchChoice(state) {
         }
         return;
       }
+      if (key === '\u007f' || key === '\b') {
+        if (!commandBuffer) return;
+        commandBuffer = [...commandBuffer].slice(0, -1).join('');
+        index = 0;
+        render();
+        return;
+      }
       if (/^[\x20-\x7e]$/.test(key)) {
-        commandBuffer = key;
+        commandBuffer += key;
         index = 0;
         render();
       }
@@ -510,10 +551,10 @@ function readInputBox({ title, label, value = '', hint = '', message = '' }) {
     const render = () => {
       const lines = [`${renderBanner()}`, '', title];
       if (message) lines.push('', message);
+      const inputLineIndex = lines.length + 1;
       lines.push('', renderInputBox(text));
-      const inputTopRow = lines.length - 1;
       lines.push(color('hint:', '127;127;127') + ` ${label}${hint ? `, e.g. ${hint}` : ''}`, '', 'Enter accept  Esc cancel  Ctrl+C quit');
-      writeInteractiveFrame(lines.join('\n'), { row: inputTopRow + 2, column: inputCursorColumn(text) });
+      writeInteractiveFrame(lines.join('\n'), { row: rowForFrameLine(lines, inputLineIndex) + 1, column: inputCursorColumn(text) });
     };
 
     const onData = chunk => {
@@ -594,7 +635,8 @@ async function runLaunchPicker(options = {}) {
   enterInteractiveScreen();
   try {
     while (true) {
-      const models = await detectLocalModels();
+      renderLaunchLoading(message || 'Scanning local models');
+      const models = sortedModels(await detectLocalModels());
       const installed = detectInstalledLocalRuntimes();
       const codex = await import('../app/lib/codexLauncher.js').then(mod => mod.codexStatus()).catch(() => ({ connected: false }));
       const choices = models.slice(0, 9).map(model => ({
@@ -610,11 +652,6 @@ async function runLaunchPicker(options = {}) {
       message = '';
 
       let choice = result.choice;
-      if (result.type === 'command') {
-        message = 'Type to filter the model list, then press Enter.';
-        continue;
-      }
-
       if (choice.kind === 'local') {
         const model = options.autostart === false ? choice.model : await startDetectedRuntime(choice.model);
         process.env.SLOPWEB_PROVIDER = 'local';

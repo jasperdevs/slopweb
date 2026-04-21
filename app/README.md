@@ -9,7 +9,7 @@ npm install -g slopweb
 slopweb
 ```
 
-Press `Ctrl+C` to stop the server.
+Choose a detected local model or Codex in the terminal picker. Press `Ctrl+C` to stop the server.
 
 <details>
 <summary>Local models</summary>

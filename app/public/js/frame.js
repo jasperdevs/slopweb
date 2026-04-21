@@ -16,6 +16,8 @@ html,body{margin:0;min-height:100%;background:#fff;color:#202124;font-family:Ari
   const seen = new Set();
   const styleEl = document.querySelector('#slopweb-style');
   const preview = document.querySelector('#slopweb-preview');
+  let lastBody = '';
+  let lastStyle = '';
   const complete = html => {
     let doc = String(html || '');
     if (!/<body[\\s>]/i.test(doc)) return '';
@@ -49,8 +51,15 @@ html,body{margin:0;min-height:100%;background:#fff;color:#202124;font-family:Ari
     if (!full) return;
     const doc = new DOMParser().parseFromString(full, 'text/html');
     doc.querySelectorAll('script,iframe,object,embed,link[rel~="stylesheet" i]').forEach(node => node.remove());
-    styleEl.textContent = Array.from(doc.querySelectorAll('style')).map(node => node.textContent || '').join('\\n');
-    preview.innerHTML = doc.body ? doc.body.innerHTML : '';
+    const nextStyle = Array.from(doc.querySelectorAll('style')).map(node => node.textContent || '').join('\\n');
+    const nextBody = doc.body ? doc.body.innerHTML : '';
+    if (nextStyle !== lastStyle) {
+      styleEl.textContent = nextStyle;
+      lastStyle = nextStyle;
+    }
+    if (nextBody === lastBody) return;
+    preview.innerHTML = nextBody;
+    lastBody = nextBody;
     decorate();
   };
   window.addEventListener('message', event => {

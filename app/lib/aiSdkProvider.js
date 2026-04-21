@@ -57,7 +57,7 @@ export async function loadAiSdkModel() {
     throw new Error('No local model server detected. Run `slopweb models`, start a local model server, or pass --base-url and --model.');
   }
 
-  const [{ streamText, generateText, smoothStream }, { createOpenAICompatible }] = await Promise.all([
+  const [{ streamText, generateText }, { createOpenAICompatible }] = await Promise.all([
     import('ai'),
     import('@ai-sdk/openai-compatible')
   ]);

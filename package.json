@@ -11,12 +11,13 @@
     "app",
     "assets",
     "bin",
+    "scripts",
     "README.md"
   ],
   "scripts": {
     "start": "node ./bin/slopweb.js",
     "dev": "node ./bin/slopweb.js",
-    "check": "node --check bin/slopweb.js && node --check app/server.js && node --check app/lib/config.js && node --check app/lib/utils.js && node --check app/lib/http.js && node --check app/lib/html.js && node --check app/lib/prompts.js && node --check app/lib/localModels.js && node --check app/lib/aiSdkProvider.js && node --check app/lib/codexLauncher.js && node --check app/lib/builtinPages.js && node --check app/lib/generator.js && node --check app/public/js/state.js && node --check app/public/js/api.js && node --check app/public/js/frame.js && node --check app/public/js/ui.js && node --check app/public/js/app.js",
+    "check": "node scripts/check.mjs",
     "pack:dry": "npm pack --dry-run",
     "prepublishOnly": "npm run check"
   },

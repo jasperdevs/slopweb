@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "check": "node --check server.js && node --check lib/config.js && node --check lib/utils.js && node --check lib/http.js && node --check lib/html.js && node --check lib/prompts.js && node --check lib/localModels.js && node --check lib/aiSdkProvider.js && node --check lib/codexLauncher.js && node --check lib/builtinPages.js && node --check lib/generator.js && node --check public/js/state.js && node --check public/js/api.js && node --check public/js/frame.js && node --check public/js/ui.js && node --check public/js/app.js"
+    "check": "node ../scripts/check.mjs ."
   },
   "engines": {
     "node": ">=18.17"
