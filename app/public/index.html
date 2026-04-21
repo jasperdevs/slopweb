@@ -30,9 +30,7 @@
           <button class="go-btn" type="submit" aria-label="Generate page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></button>
         </label>
 
-        <button id="connectBtn" class="toolbar-pill" type="button" title="Connect Codex with OAuth"><span class="pill-dot"></span>Codex</button>
         <div class="status-pill" id="authStatus">checking</div>
-        <button id="sourceToggle" type="button" class="chrome-icon source-toggle active" aria-label="Toggle source rail" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 9-3 3 3 3"/><path d="m16 9 3 3-3 3"/><path d="m14 5-4 14"/></svg></button>
 
         <details class="chrome-menu">
           <summary class="chrome-icon" aria-label="Open menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5h.01M12 12h.01M12 17.5h.01"/></svg></summary>
@@ -40,7 +38,6 @@
             <section class="menu-section first">
               <button type="button" id="menuNewTab"><span>New tab</span><kbd>Ctrl+T</kbd></button>
               <button type="button" id="menuFocusAddress"><span>Focus address</span><kbd>Ctrl+L</kbd></button>
-              <button type="button" id="menuToggleSource"><span>Toggle source rail</span></button>
             </section>
             <section class="menu-section">
               <h2>Generate</h2>
@@ -85,7 +82,6 @@
       <header><div><p class="dialog-eyebrow">Local OAuth</p><h2>Connect Codex</h2></div><button class="chrome-icon dialog-close" value="close" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5.7 5.6 5.6 5.6-5.6.7.7-5.6 5.6 5.6 5.6-.7.7-5.6-5.6-5.6 5.6-.7-.7 5.6-5.6-5.6-5.6z"/></svg></button></header>
       <p>This app uses your local Codex CLI. Your OAuth token stays in your Codex credential store, not inside this HTML shell.</p>
       <div class="command-box"><code>slopweb login</code><code>codex login</code><code>slopweb status</code></div>
-      <button id="startDeviceLoginBtn" class="dialog-primary" type="button">Start device OAuth</button>
       <pre id="authLog" class="auth-log">No login started yet.</pre>
     </form>
   </dialog>

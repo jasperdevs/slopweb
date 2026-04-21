@@ -2,7 +2,6 @@ import { activeTab, state, saveSourceOpen } from './state.js';
 
 export const els = {
   authStatus: document.querySelector('#authStatus'),
-  connectBtn: document.querySelector('#connectBtn'),
   navForm: document.querySelector('#navForm'),
   addressInput: document.querySelector('#addressInput'),
   omnibox: document.querySelector('.omnibox'),
@@ -20,18 +19,15 @@ export const els = {
   liveBadgeText: document.querySelector('#liveBadge b'),
   elementTrail: document.querySelector('#elementTrail'),
   sourceRail: document.querySelector('#sourceRail'),
-  sourceToggle: document.querySelector('#sourceToggle'),
   sourceCollapse: document.querySelector('#sourceCollapse'),
   sourceStatus: document.querySelector('#sourceStatus'),
   liveSource: document.querySelector('#liveSource'),
   authDialog: document.querySelector('#authDialog'),
   authLog: document.querySelector('#authLog'),
-  startDeviceLoginBtn: document.querySelector('#startDeviceLoginBtn'),
   activeTabTitle: document.querySelector('#activeTabTitle'),
   chromeMenu: document.querySelector('.chrome-menu'),
   menuNewTab: document.querySelector('#menuNewTab'),
   menuFocusAddress: document.querySelector('#menuFocusAddress'),
-  menuToggleSource: document.querySelector('#menuToggleSource'),
   viewportShell: document.querySelector('.viewport-shell')
 };
 
@@ -52,14 +48,12 @@ export function focusAddress() {
 export function setLiveMode(active, text = 'assembling elements') {
   els.liveBadge.classList.add('hidden');
   els.liveBadgeText.textContent = text;
-  if (els.sourceStatus) els.sourceStatus.textContent = active ? 'streaming' : 'idle';
+  if (els.sourceStatus) els.sourceStatus.textContent = active ? 'receiving' : 'idle';
 }
 
 export function setSourceOpen(open) {
   state.sourceOpen = Boolean(open);
   els.viewportShell.classList.toggle('source-collapsed', !state.sourceOpen);
-  els.sourceToggle.classList.toggle('active', state.sourceOpen);
-  els.sourceToggle.setAttribute('aria-pressed', state.sourceOpen ? 'true' : 'false');
   els.sourceCollapse.setAttribute('aria-label', state.sourceOpen ? 'Collapse source rail' : 'Expand source rail');
   els.sourceCollapse.title = state.sourceOpen ? 'Collapse source rail' : 'Expand source rail';
   saveSourceOpen();

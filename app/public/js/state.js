@@ -50,7 +50,7 @@ export const state = {
   liveBuffer: active.source || active.html,
   liveRenderQueued: false,
   materializedTags: [],
-  sourceOpen: localStorage.getItem(SOURCE_OPEN_KEY) !== '0'
+  sourceOpen: true
 };
 
 export function activeTab() {

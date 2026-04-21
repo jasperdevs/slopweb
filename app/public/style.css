@@ -97,25 +97,25 @@ svg{width:18px;height:18px;display:block;fill:none;stroke:currentColor;stroke-wi
 .live-badge span{width:8px;height:8px;border-radius:50%;background:#1a73e8;box-shadow:0 0 0 0 rgba(26,115,232,.42);animation:livePulse 1.2s ease-in-out infinite}
 @keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(26,115,232,.42)}70%{box-shadow:0 0 0 9px rgba(26,115,232,0)}100%{box-shadow:0 0 0 0 rgba(26,115,232,0)}}
 
-.source-rail{min-width:0;height:100%;display:grid;grid-template-rows:42px auto minmax(0,1fr);border-left:1px solid #1f2937;background:#0a0f1d;color:#dbeafe;overflow:hidden}
-.source-rail header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 10px;border-bottom:1px solid rgba(255,255,255,.08);background:#111827}
+.source-rail{min-width:0;height:100%;display:grid;grid-template-rows:42px auto minmax(0,1fr);border-left:1px solid #262626;background:#0f0f10;color:#e5e5e5;overflow:hidden}
+.source-rail header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 10px;border-bottom:1px solid rgba(255,255,255,.08);background:#151515}
 .source-rail header div{min-width:0;display:flex;align-items:baseline;gap:8px}
 .source-rail strong{font-size:12px;letter-spacing:.08em;text-transform:uppercase}
-.source-rail span{min-width:0;color:#93c5fd;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
-.element-strip{display:flex;gap:6px;min-height:34px;padding:7px 10px;overflow:hidden;border-bottom:1px solid rgba(255,255,255,.08);background:#0f172a}
-.element-strip span{display:inline-flex;align-items:center;height:20px;border-radius:5px;padding:0 7px;background:#16233a;color:#9cc6ff;font:11px/1 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap;animation:tagAppear 220ms cubic-bezier(.2,0,0,1) both}
+.source-rail span{min-width:0;color:#a3a3a3;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums}
+.element-strip{display:flex;gap:6px;min-height:34px;padding:7px 10px;overflow:hidden;border-bottom:1px solid rgba(255,255,255,.08);background:#111}
+.element-strip span{display:inline-flex;align-items:center;height:20px;border-radius:5px;padding:0 7px;background:#1f1f1f;color:#d4d4d4;font:11px/1 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap;animation:tagAppear 220ms cubic-bezier(.2,0,0,1) both}
 @keyframes tagAppear{from{opacity:0;transform:translateY(6px);filter:blur(3px)}to{opacity:1;transform:translateY(0);filter:blur(0)}}
 .rail-close{width:26px;height:26px;display:grid;place-items:center;border-radius:6px;color:#cbd5e1;font-size:20px;line-height:1}
 .rail-close span{display:none}
-.source-rail pre{margin:0;min-height:0;overflow:auto;padding:0;font:11px/1.55 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;white-space:pre;tab-size:2;color:#d7e6ff;background:#0a0f1d}
+.source-rail pre{margin:0;min-height:0;overflow:auto;padding:0;font:11px/1.55 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;white-space:pre;tab-size:2;color:#e5e5e5;background:#0f0f10}
 .code-line{display:grid;grid-template-columns:42px minmax(0,1fr);min-height:18px}
-.code-line:hover{background:rgba(147,197,253,.07)}
-.line-no{padding:0 10px 0 0;text-align:right;color:#52637d;user-select:none;border-right:1px solid rgba(255,255,255,.06)}
-.line-code{min-width:0;padding:0 12px;color:#d7e6ff}
-.code-tag{color:#7dd3fc}
-.code-attr{color:#facc15}
-.code-value{color:#86efac}
-.code-comment{color:#64748b}
+.code-line:hover{background:rgba(255,255,255,.055)}
+.line-no{padding:0 10px 0 0;text-align:right;color:#666;user-select:none;border-right:1px solid rgba(255,255,255,.07)}
+.line-code{min-width:0;padding:0 12px;color:#e5e5e5}
+.code-tag{color:#fff;font-weight:650}
+.code-attr{color:#bdbdbd}
+.code-value{color:#d7d7d7}
+.code-comment{color:#737373;font-style:italic}
 .source-collapsed .source-rail{grid-template-rows:minmax(0,1fr);border-left-color:#d8dee9;background:#f8fafd;color:#3c4043}
 .source-collapsed .source-rail header{height:100%;display:grid;place-items:center;padding:0;border-bottom:0;background:#f8fafd}
 .source-collapsed .source-rail header div,.source-collapsed .element-strip,.source-collapsed .source-rail pre{display:none}

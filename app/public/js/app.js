@@ -48,7 +48,7 @@ function runSlashCommand(value) {
     return true;
   }
   if (command === 'login') {
-    els.authDialog.showModal();
+    showAuthCommands();
     return true;
   }
   if (command === 'clear') {
@@ -113,7 +113,7 @@ function beginLiveHtml(address) {
   setLiveMode(true, 'assembling elements');
   els.addressInput.value = address;
   resetLiveDocument('opening');
-  updateSourcePreview(els.liveSource, els.sourceStatus, state.liveBuffer);
+  renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
   return state.abortController;
 }
 
@@ -235,8 +235,7 @@ export async function navigate(rawAddress, options = {}) {
 
     if (authInfo) {
       setStatus('bad', 'Login needed');
-      if (!els.authDialog.open) els.authDialog.showModal();
-      els.authLog.textContent = `${authInfo.authMessage || 'Codex login needed.'}\n\nRun: slopweb login\nThen: slopweb status`;
+      showAuthCommands(authInfo.authMessage || 'Codex login needed.');
     }
   } catch (error) {
     if (controller.signal.aborted || serial !== state.navigationSerial) return;
@@ -257,6 +256,11 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
+}
+
+function showAuthCommands(message = 'Codex login needed.') {
+  if (!els.authDialog.open) els.authDialog.showModal();
+  els.authLog.textContent = `${message}\n\nRun in your terminal:\nslopweb login\nslopweb status`;
 }
 
 els.frame.addEventListener('load', wireFrameNavigation);
@@ -323,43 +327,14 @@ els.forwardBtn.addEventListener('click', () => { if (state.index < state.entries
 els.reloadBtn.addEventListener('click', () => { navigate(state.entries[state.index] || els.addressInput.value, { push: false, index: Math.max(state.index, 0) }); });
 els.homeBtn.addEventListener('click', () => navigate('synthetic://home'));
 els.clearBtn.addEventListener('click', clearHistory);
-els.connectBtn.addEventListener('click', () => els.authDialog.showModal());
 els.menuNewTab?.addEventListener('click', () => { if (els.chromeMenu) els.chromeMenu.open = false; openNewTab(); });
 els.menuFocusAddress?.addEventListener('click', () => { if (els.chromeMenu) els.chromeMenu.open = false; focusAddress(); });
-els.sourceToggle.addEventListener('click', toggleSource);
 els.sourceCollapse.addEventListener('click', toggleSource);
-els.menuToggleSource?.addEventListener('click', () => { if (els.chromeMenu) els.chromeMenu.open = false; toggleSource(); });
 
 document.querySelectorAll('[data-jump]').forEach(button => {
   button.addEventListener('click', () => {
     if (els.chromeMenu) els.chromeMenu.open = false;
     navigate(button.dataset.jump);
-  });
-});
-
-els.startDeviceLoginBtn.addEventListener('click', () => {
-  els.authLog.textContent = '';
-  const events = new EventSource('/api/auth/login');
-  events.addEventListener('log', event => {
-    const data = JSON.parse(event.data);
-    els.authLog.textContent += data.text;
-    els.authLog.scrollTop = els.authLog.scrollHeight;
-  });
-  events.addEventListener('error', event => {
-    try {
-      const data = JSON.parse(event.data);
-      els.authLog.textContent += `\n${data.text}\n`;
-    } catch {
-      els.authLog.textContent += '\nLogin stream closed.\n';
-    }
-    events.close();
-    checkAuth();
-  });
-  events.addEventListener('done', event => {
-    const data = JSON.parse(event.data);
-    els.authLog.textContent += `\nOAuth process finished with code ${data.code}.\n`;
-    events.close();
-    checkAuth();
   });
 });
 
