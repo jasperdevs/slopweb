@@ -19,6 +19,7 @@ html,body{margin:0;min-height:100%;background:#fff;color:#202124;font-family:Ari
   const parser = new DOMParser();
   let lastBody = '';
   let lastStyle = '';
+  let firstElementSent = false;
   const complete = html => {
     let doc = String(html || '');
     if (!/<body[\\s>]/i.test(doc)) return '';
@@ -102,6 +103,10 @@ html,body{margin:0;min-height:100%;background:#fff;color:#202124;font-family:Ari
       const key = keyFor(element);
       if (seen.has(key)) return;
       seen.add(key);
+      if (!firstElementSent) {
+        firstElementSent = true;
+        parent.postMessage({ type: 'slopweb:first-element' }, '*');
+      }
       element.dataset.slopwebNew = '';
       element.style.animationDelay = Math.min(index * 28, 420) + 'ms';
     });

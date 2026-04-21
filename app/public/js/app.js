@@ -6,6 +6,47 @@ import { els, setStatus, updateOmniboxState, focusAddress, setLiveMode, setSourc
 let liveFrameReady = false;
 let liveFrameTimer = 0;
 let lastLiveFrameHtml = '';
+const streamPerfEnabled = (() => {
+  try {
+    return new URLSearchParams(location.search).has('streamMetrics') || localStorage.getItem('slopweb-stream-metrics') === '1';
+  } catch {
+    return false;
+  }
+})();
+const streamTextEncoder = streamPerfEnabled ? new TextEncoder() : null;
+const streamPerf = streamPerfEnabled ? (window.__slopStream = window.__slopStream || { current: null, history: [] }) : null;
+
+function beginStreamPerf(address) {
+  if (!streamPerf) return null;
+  const run = { address, startedAt: performance.now(), ttfbMs: 0, ttfeMs: 0, chunkCount: 0, bytes: 0, renderFrames: 0, iframePosts: 0 };
+  streamPerf.current = run;
+  streamPerf.history.push(run);
+  if (streamPerf.history.length > 20) streamPerf.history.shift();
+  return run;
+}
+
+function markStreamFirstEvent(run) {
+  if (run && !run.ttfbMs) run.ttfbMs = performance.now() - run.startedAt;
+}
+
+function markStreamChunk(run, text) {
+  if (!run) return;
+  run.chunkCount += 1;
+  run.bytes += streamTextEncoder ? streamTextEncoder.encode(String(text || '')).byteLength : String(text || '').length;
+}
+
+function markStreamFrame(run) {
+  if (run) run.renderFrames += 1;
+}
+
+function markStreamPost(run) {
+  if (run) run.iframePosts += 1;
+}
+
+function markStreamFirstElement() {
+  const run = streamPerf?.current;
+  if (run && !run.ttfeMs) run.ttfeMs = performance.now() - run.startedAt;
+}
 
 function normalizeInput(value, base = state.entries[state.index]) {
   const raw = String(value || '').trim();
@@ -70,6 +111,7 @@ function postLivePreview() {
   if (!liveFrameReady || !els.frame.contentWindow || !canRenderLiveHtml(state.liveBuffer)) return;
   if (state.liveBuffer === lastLiveFrameHtml) return;
   lastLiveFrameHtml = state.liveBuffer;
+  markStreamPost(streamPerf?.current);
   els.frame.contentWindow.postMessage({ type: 'slopweb:preview', html: state.liveBuffer }, '*');
 }
 
@@ -93,7 +135,10 @@ function scheduleLiveRender({ source = true, frame = true } = {}) {
     state.sourceRenderQueued = false;
     state.liveRenderQueued = false;
     if (shouldRenderSource) renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
-    if (shouldRenderFrame) scheduleLiveFrameRender();
+    if (shouldRenderFrame) {
+      markStreamFrame(streamPerf?.current);
+      scheduleLiveFrameRender();
+    }
   });
 }
 
@@ -121,6 +166,10 @@ function finishLiveHtml(controller = state.abortController) {
 
 window.addEventListener('message', event => {
   if (event.source !== els.frame.contentWindow) return;
+  if (event.data?.type === 'slopweb:first-element') {
+    markStreamFirstElement();
+    return;
+  }
   if (event.data?.type !== 'slopweb:navigate') return;
   const next = normalizeInput(event.data.href, state.entries[state.index]);
   if (next) navigate(next);
@@ -160,6 +209,7 @@ export async function navigate(rawAddress, options = {}) {
   renderHistory(navigate);
 
   const controller = beginLiveHtml(address);
+  const streamRun = beginStreamPerf(address);
   let finalPage = null;
   let authInfo = null;
 
@@ -175,11 +225,15 @@ export async function navigate(rawAddress, options = {}) {
 
     await readNdjsonStream(res, event => {
       if (serial !== state.navigationSerial) return;
+      markStreamFirstEvent(streamRun);
       if (event.type === 'reset') resetLiveDocument(event.reason || 'document');
       else if (event.type === 'status') {
         setLiveMode(true, event.text || 'assembling elements');
       }
-      else if (event.type === 'chunk') appendLiveHtml(event.text || '');
+      else if (event.type === 'chunk') {
+        markStreamChunk(streamRun, event.text);
+        appendLiveHtml(event.text || '');
+      }
       else if (event.type === 'done') {
         finalPage = event.page;
         if (event.page?.authRequired) authInfo = event.page;
