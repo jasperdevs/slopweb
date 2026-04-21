@@ -59,8 +59,7 @@ export function toggleSource() {
 }
 
 export function renderHistory(navigate) {
-  els.historyList.innerHTML = '';
-  state.entries.forEach((address, index) => {
+  const items = state.entries.map((address, index) => {
     const li = document.createElement('li');
     const button = document.createElement('button');
     const span = document.createElement('span');
@@ -72,8 +71,9 @@ export function renderHistory(navigate) {
       navigate(address, { push: false, index });
     });
     li.append(button);
-    els.historyList.append(li);
+    return li;
   });
+  els.historyList.replaceChildren(...items);
   els.backBtn.disabled = state.index <= 0;
   els.forwardBtn.disabled = state.index >= state.entries.length - 1;
 }
