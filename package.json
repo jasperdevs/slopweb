@@ -4,7 +4,7 @@
   "description": "A new web where every site is generated with AI.",
   "type": "module",
   "bin": {
-    "agenticweb": "./bin/agenticweb.js"
+    "agenticweb": "bin/agenticweb.js"
   },
   "files": [
     "assets",
