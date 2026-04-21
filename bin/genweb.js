@@ -27,20 +27,20 @@ function takeFlag(name) {
 }
 
 function printHelp() {
-  console.log(`Agentic Web
+  console.log(`Genweb
 
 Usage:
-  agenticweb [start] [--port 8787] [--host localhost] [--strict-port] [--open]
-  agenticweb login
-  agenticweb status
-  agenticweb logout
-  agenticweb doctor
+  genweb [start] [--port 8787] [--host localhost] [--strict-port] [--open]
+  genweb login
+  genweb status
+  genweb logout
+  genweb doctor
 
 Examples:
-  agenticweb
-  agenticweb --port 9000 --open
-  agenticweb login
-  agenticweb status
+  genweb
+  genweb --port 9000 --open
+  genweb login
+  genweb status
 
 The server is local-only by default and opens at http://localhost:8787.`);
 }
@@ -57,7 +57,7 @@ if (args.includes('--version') || args.includes('-v')) {
 
 if (args[0] && !args[0].startsWith('-') && !COMMANDS.has(args[0])) {
   console.error(`Unknown command: ${args[0]}`);
-  console.error('Run `agenticweb --help` for usage.');
+  console.error('Run `genweb --help` for usage.');
   process.exit(1);
 }
 
@@ -186,7 +186,7 @@ async function showStatus() {
 }
 
 async function runDoctor() {
-  console.log('Agentic Web doctor');
+  console.log('Genweb doctor');
   console.log(`Node: ${process.version}`);
   console.log(`Package: ${rootDir}`);
   console.log('Default URL: http://localhost:8787');

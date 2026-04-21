@@ -1,16 +1,16 @@
 <p align="center">
-  <img src="./assets/logo.png" alt="Agentic Web logo" width="220" />
+  <img src="./assets/logo.png" alt="Genweb logo" width="220" />
 </p>
 
-<h1 align="center">Agentic Web</h1>
+<h1 align="center">Genweb</h1>
 
 <p align="center">A new web where AI generates every page.</p>
 
 ## Install
 
 ```powershell
-npm install -g @jasperdevs/agenticweb
-agenticweb
+npm install -g genweb
+genweb
 ```
 
 Open:
@@ -19,13 +19,13 @@ Open:
 http://localhost:8787
 ```
 
-Agentic Web starts on `localhost` by default. If port `8787` is busy, it picks the next open port and prints the URL.
+Genweb starts on `localhost` by default. If port `8787` is busy, it picks the next open port and prints the URL.
 
 <details>
 <summary>Try without installing</summary>
 
 ```powershell
-npx @jasperdevs/agenticweb
+npx genweb
 ```
 
 </details>
@@ -36,19 +36,19 @@ npx @jasperdevs/agenticweb
 Connect Codex once:
 
 ```powershell
-agenticweb login
+genweb login
 ```
 
 Check status:
 
 ```powershell
-agenticweb status
+genweb status
 ```
 
 Sign out:
 
 ```powershell
-agenticweb logout
+genweb logout
 ```
 
 </details>
@@ -57,13 +57,13 @@ agenticweb logout
 <summary>CLI options</summary>
 
 ```powershell
-agenticweb
-agenticweb --port 9000
-agenticweb --open
-agenticweb --strict-port
-agenticweb --mock
-agenticweb --lan
-agenticweb doctor
+genweb
+genweb --port 9000
+genweb --open
+genweb --strict-port
+genweb --mock
+genweb --lan
+genweb doctor
 ```
 
 `--lan` exposes the local server on your network. Keep the default for normal local use.
@@ -78,7 +78,7 @@ Use direct model streaming with an API key:
 ```powershell
 $env:OPENAI_API_KEY="your_key_here"
 $env:AI_PROVIDER="ai-sdk"
-agenticweb
+genweb
 ```
 
 </details>

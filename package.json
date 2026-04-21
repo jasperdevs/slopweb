@@ -1,10 +1,10 @@
 {
-  "name": "@jasperdevs/agenticweb",
+  "name": "genweb",
   "version": "1.0.0",
   "description": "A new web where every site is generated with AI.",
   "type": "module",
   "bin": {
-    "agenticweb": "bin/agenticweb.js"
+    "genweb": "bin/genweb.js"
   },
   "files": [
     "assets",
@@ -13,9 +13,9 @@
     "README.md"
   ],
   "scripts": {
-    "start": "node ./bin/agenticweb.js",
-    "dev": "node ./bin/agenticweb.js",
-    "check": "node --check bin/agenticweb.js && node --check codegen-browser/server.js && node --check codegen-browser/lib/config.js && node --check codegen-browser/lib/utils.js && node --check codegen-browser/lib/http.js && node --check codegen-browser/lib/html.js && node --check codegen-browser/lib/prompts.js && node --check codegen-browser/lib/codexLauncher.js && node --check codegen-browser/lib/builtinPages.js && node --check codegen-browser/lib/generator.js && node --check codegen-browser/public/js/state.js && node --check codegen-browser/public/js/api.js && node --check codegen-browser/public/js/frame.js && node --check codegen-browser/public/js/ui.js && node --check codegen-browser/public/js/app.js",
+    "start": "node ./bin/genweb.js",
+    "dev": "node ./bin/genweb.js",
+    "check": "node --check bin/genweb.js && node --check codegen-browser/server.js && node --check codegen-browser/lib/config.js && node --check codegen-browser/lib/utils.js && node --check codegen-browser/lib/http.js && node --check codegen-browser/lib/html.js && node --check codegen-browser/lib/prompts.js && node --check codegen-browser/lib/codexLauncher.js && node --check codegen-browser/lib/builtinPages.js && node --check codegen-browser/lib/generator.js && node --check codegen-browser/public/js/state.js && node --check codegen-browser/public/js/api.js && node --check codegen-browser/public/js/frame.js && node --check codegen-browser/public/js/ui.js && node --check codegen-browser/public/js/app.js",
     "pack:dry": "npm pack --dry-run"
   },
   "keywords": [
@@ -28,12 +28,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jasperdevs/agenticweb.git"
+    "url": "git+https://github.com/jasperdevs/genweb.git"
   },
   "bugs": {
-    "url": "https://github.com/jasperdevs/agenticweb/issues"
+    "url": "https://github.com/jasperdevs/genweb/issues"
   },
-  "homepage": "https://github.com/jasperdevs/agenticweb#readme",
+  "homepage": "https://github.com/jasperdevs/genweb#readme",
   "publishConfig": {
     "access": "public"
   },

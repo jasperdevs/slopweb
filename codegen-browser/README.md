@@ -5,7 +5,7 @@ A local Chrome-like browser shell where synthetic addresses generate self-contai
 ## Install
 
 ```powershell
-npx agenticweb
+npx genweb
 ```
 
 From the repository root:
@@ -18,8 +18,8 @@ npm start
 For a permanent install:
 
 ```powershell
-npm install -g agenticweb
-agenticweb
+npm install -g genweb
+genweb
 ```
 
 Open:
@@ -30,12 +30,12 @@ http://localhost:8787
 
 ## Codex OAuth
 
-Agentic Web wraps Codex OAuth directly:
+Genweb wraps Codex OAuth directly:
 
 ```powershell
-npx agenticweb login
-npx agenticweb status
-npx agenticweb
+npx genweb login
+npx genweb status
+npx genweb
 ```
 
 The browser also exposes the same login flow through the Codex button.
@@ -47,7 +47,7 @@ Set an API key to stream model text directly through the Vercel AI SDK:
 ```powershell
 $env:OPENAI_API_KEY="your_key_here"
 $env:AI_PROVIDER="ai-sdk"
-npx agenticweb
+npx genweb
 ```
 
 ## Notes
