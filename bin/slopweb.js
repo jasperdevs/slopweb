@@ -210,8 +210,9 @@ function openUrl(url) {
 }
 
 function modelChoiceLabel(model) {
+  const marker = model.live ? '●' : '○';
   const state = model.live ? 'running' : 'installed';
-  return `${model.providerName} · ${model.id} (${state})`;
+  return `${marker} ${model.providerName} · ${model.id} (${state})`;
 }
 
 async function waitForJson(url, timeoutMs) {
@@ -316,9 +317,10 @@ async function listLocalModels() {
   if (models.length) {
     console.log('Local models');
     for (const model of models) {
+      const marker = model.live ? '●' : '○';
       const state = model.live ? 'running' : 'installed';
       const location = model.filePath || model.baseUrl;
-      console.log(`  ${model.providerName}\t${model.id}\t${state}\t${location}`);
+      console.log(`  ${marker} ${model.providerName}\t${model.id}\t${state}\t${location}`);
     }
     return;
   }
