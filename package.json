@@ -2,16 +2,36 @@
   "name": "agenticweb",
   "version": "1.0.0",
   "description": "A new web where every site is generated with AI.",
-  "private": true,
-  "workspaces": [
-    "codegen-browser"
+  "type": "module",
+  "bin": {
+    "agenticweb": "./bin/agenticweb.js"
+  },
+  "files": [
+    "assets",
+    "bin",
+    "codegen-browser",
+    "README.md"
   ],
   "scripts": {
-    "start": "npm --workspace codegen-browser start",
-    "dev": "npm --workspace codegen-browser dev",
-    "check": "npm --workspace codegen-browser run check"
+    "start": "node ./bin/agenticweb.js",
+    "dev": "node ./bin/agenticweb.js",
+    "check": "node --check bin/agenticweb.js && node --check codegen-browser/server.js && node --check codegen-browser/lib/config.js && node --check codegen-browser/lib/utils.js && node --check codegen-browser/lib/http.js && node --check codegen-browser/lib/html.js && node --check codegen-browser/lib/prompts.js && node --check codegen-browser/lib/codexLauncher.js && node --check codegen-browser/lib/builtinPages.js && node --check codegen-browser/lib/generator.js && node --check codegen-browser/public/js/state.js && node --check codegen-browser/public/js/api.js && node --check codegen-browser/public/js/frame.js && node --check codegen-browser/public/js/ui.js && node --check codegen-browser/public/js/app.js",
+    "pack:dry": "npm pack --dry-run"
   },
+  "keywords": [
+    "ai",
+    "browser",
+    "codex",
+    "generated-websites",
+    "static-html"
+  ],
+  "license": "UNLICENSED",
   "engines": {
     "node": ">=18.17"
+  },
+  "optionalDependencies": {
+    "ai": "6.0.168",
+    "@ai-sdk/openai": "3.0.53",
+    "zod": "4.3.6"
   }
 }

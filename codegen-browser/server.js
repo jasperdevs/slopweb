@@ -169,7 +169,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(config.port, config.host, () => {
-  const displayHost = config.host === '0.0.0.0' ? 'localhost' : config.host;
+  const displayHost = config.host === '0.0.0.0' || config.host === '127.0.0.1' ? 'localhost' : config.host;
   console.log(`Codegen Browser running at http://${displayHost}:${config.port}`);
   console.log(`Model: ${config.codexModel}`);
   console.log(`Provider: ${config.aiProvider}`);

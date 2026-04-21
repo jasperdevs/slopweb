@@ -4,6 +4,12 @@ A local Chrome-like browser shell where synthetic addresses generate self-contai
 
 ## Run
 
+From npm, after the package is published:
+
+```powershell
+npx agenticweb
+```
+
 From the repository root:
 
 ```powershell
