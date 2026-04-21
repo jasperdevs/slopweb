@@ -113,9 +113,10 @@ function beginLiveHtml(address) {
   return state.abortController;
 }
 
-function finishLiveHtml() {
+function finishLiveHtml(controller = state.abortController) {
   setLiveMode(false);
   els.sourceStatus.textContent = state.liveBuffer ? 'done' : 'idle';
+  if (!controller || state.abortController === controller) state.abortController = null;
 }
 
 window.addEventListener('message', event => {
@@ -188,7 +189,7 @@ export async function navigate(rawAddress, options = {}) {
     });
 
     if (serial !== state.navigationSerial) return;
-    finishLiveHtml();
+    finishLiveHtml(controller);
 
     if (!finalPage) throw new Error('Generator stream ended without a page.');
     renderFinalPage(finalPage);
@@ -200,7 +201,7 @@ export async function navigate(rawAddress, options = {}) {
     }
   } catch (error) {
     if (controller.signal.aborted || serial !== state.navigationSerial) return;
-    finishLiveHtml();
+    finishLiveHtml(controller);
     if (els.activeTabTitle) els.activeTabTitle.textContent = 'Generation error';
     renderFinalPage({ title: 'Generation error', html: errorPage(address, error.message) });
   }
