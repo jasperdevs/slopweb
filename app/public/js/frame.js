@@ -16,6 +16,7 @@ html,body{margin:0;min-height:100%;background:#fff;color:#202124;font-family:Ari
   const seen = new Set();
   const styleEl = document.querySelector('#slopweb-style');
   const preview = document.querySelector('#slopweb-preview');
+  const parser = new DOMParser();
   let lastBody = '';
   let lastStyle = '';
   const complete = html => {
@@ -49,7 +50,7 @@ html,body{margin:0;min-height:100%;background:#fff;color:#202124;font-family:Ari
   const render = html => {
     const full = complete(html);
     if (!full) return;
-    const doc = new DOMParser().parseFromString(full, 'text/html');
+    const doc = parser.parseFromString(full, 'text/html');
     doc.querySelectorAll('script,iframe,object,embed,link[rel~="stylesheet" i]').forEach(node => node.remove());
     const nextStyle = Array.from(doc.querySelectorAll('style')).map(node => node.textContent || '').join('\\n');
     const nextBody = doc.body ? doc.body.innerHTML : '';
