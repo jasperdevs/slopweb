@@ -107,6 +107,8 @@ export async function handlePageStream(req, res) {
   }
 }
 
+const chunkBreakTokens = ['\n', '>', '</style>'];
+
 async function streamHtmlChunks(send, html, options = {}) {
   const text = String(html || '');
   const minChunk = Number(options.minChunk || 64);
@@ -115,8 +117,11 @@ async function streamHtmlChunks(send, html, options = {}) {
   const shouldStop = typeof options.shouldStop === 'function' ? options.shouldStop : () => false;
   let index = 0;
   while (index < text.length && !shouldStop()) {
-    const nextBreaks = ['\n', '>', '</style>'].map(token => text.indexOf(token, index + minChunk)).filter(value => value > -1);
-    const nearBreak = nextBreaks.length ? Math.min(...nextBreaks) + 1 : -1;
+    let nearBreak = -1;
+    for (const token of chunkBreakTokens) {
+      const breakAt = text.indexOf(token, index + minChunk);
+      if (breakAt > -1 && (nearBreak === -1 || breakAt < nearBreak)) nearBreak = breakAt + 1;
+    }
     let end = nearBreak > -1 && nearBreak - index <= maxChunk ? nearBreak : index + maxChunk;
     if (end <= index) end = index + maxChunk;
     const chunk = text.slice(index, Math.min(text.length, end));
