@@ -75,6 +75,14 @@
     <section class="viewport-shell" aria-label="Generated page and live source">
       <section class="page-pane">
         <div id="liveBadge" class="live-badge hidden" aria-live="polite"><span></span><b>assembling elements</b></div>
+        <div id="materializeLayer" class="materialize-layer hidden" aria-hidden="true">
+          <div class="materialize-scan"></div>
+          <div class="build-panel">
+            <p>materializing</p>
+            <strong id="buildStatus">opening address</strong>
+            <ol id="elementTrail"></ol>
+          </div>
+        </div>
         <iframe id="pageFrame" title="Generated page" sandbox="allow-forms allow-modals allow-same-origin" referrerpolicy="no-referrer"></iframe>
       </section>
       <aside id="sourceRail" class="source-rail" aria-label="Live HTML source">

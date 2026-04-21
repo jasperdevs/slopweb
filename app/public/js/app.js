@@ -1,7 +1,14 @@
 import { state, saveHistory } from './state.js';
 import { checkAuthStatus, readNdjsonStream } from './api.js';
 import { composeSrcdoc, updateSourcePreview } from './frame.js';
-import { els, setStatus, updateOmniboxState, focusAddress, setLiveMode, setSourceOpen, toggleSource, renderHistory } from './ui.js';
+import { els, setStatus, updateOmniboxState, focusAddress, setLiveMode, setSourceOpen, toggleSource, renderHistory, resetMaterialize, updateMaterialize, settleMaterialize } from './ui.js';
+
+const MATERIALIZED_TAGS = new Set([
+  'header', 'nav', 'main', 'section', 'article', 'aside', 'footer',
+  'h1', 'h2', 'h3', 'p', 'a', 'form', 'input', 'button', 'select',
+  'ul', 'ol', 'li', 'table', 'tr', 'td', 'th', 'figure', 'figcaption',
+  'details', 'summary', 'div', 'span'
+]);
 
 function normalizeInput(value, base = state.entries[state.index]) {
   const raw = String(value || '').trim();
@@ -71,11 +78,14 @@ async function checkAuth() {
   }
 }
 
-function resetLiveDocument() {
+function resetLiveDocument(reason = 'document') {
   state.liveBuffer = '';
   state.liveRenderQueued = false;
+  state.materializedTags = [];
+  state.materializedBytes = 0;
   els.liveSource.textContent = '';
   els.sourceStatus.textContent = 'waiting';
+  resetMaterialize(els.addressInput.value || 'synthetic://home', reason);
   els.frame.srcdoc = composeSrcdoc('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Loading</title><style>html,body{margin:0;min-height:100%;background:#fff;font-family:Arial,sans-serif;color:#202124}</style></head><body></body></html>');
 }
 
@@ -91,7 +101,9 @@ function scheduleLiveRender() {
 function appendLiveHtml(chunk) {
   if (!chunk) return;
   state.liveBuffer += chunk;
+  recordMaterializedElements(chunk);
   updateSourcePreview(els.liveSource, els.sourceStatus, state.liveBuffer);
+  updateMaterialize(state.materializedTags, state.liveBuffer.length);
   scheduleLiveRender();
 }
 
@@ -99,7 +111,8 @@ function beginLiveHtml(address) {
   if (state.abortController) state.abortController.abort();
   state.abortController = new AbortController();
   setLiveMode(true, 'assembling elements');
-  resetLiveDocument();
+  els.addressInput.value = address;
+  resetLiveDocument('opening');
   updateSourcePreview(els.liveSource, els.sourceStatus, state.liveBuffer);
   return state.abortController;
 }
@@ -107,6 +120,17 @@ function beginLiveHtml(address) {
 function finishLiveHtml() {
   setLiveMode(false);
   els.sourceStatus.textContent = state.liveBuffer ? 'done' : 'idle';
+  settleMaterialize();
+}
+
+function recordMaterializedElements(chunk) {
+  const pattern = /<([a-z][a-z0-9-]*)\b(?![^>]*\/>)/gi;
+  for (const match of String(chunk || '').matchAll(pattern)) {
+    const tag = match[1].toLowerCase();
+    if (!MATERIALIZED_TAGS.has(tag)) continue;
+    state.materializedTags.push(tag);
+  }
+  if (state.materializedTags.length > 36) state.materializedTags = state.materializedTags.slice(-36);
 }
 
 function wireFrameNavigation() {
@@ -189,8 +213,11 @@ export async function navigate(rawAddress, options = {}) {
 
     await readNdjsonStream(res, event => {
       if (serial !== state.navigationSerial) return;
-      if (event.type === 'reset') resetLiveDocument();
-      else if (event.type === 'status') setLiveMode(true, event.text || 'assembling elements');
+      if (event.type === 'reset') resetLiveDocument(event.reason || 'document');
+      else if (event.type === 'status') {
+        setLiveMode(true, event.text || 'assembling elements');
+        if (els.buildStatus) els.buildStatus.textContent = event.text || 'assembling elements';
+      }
       else if (event.type === 'chunk') appendLiveHtml(event.text || '');
       else if (event.type === 'done') {
         finalPage = event.page;

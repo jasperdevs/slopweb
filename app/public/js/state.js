@@ -27,6 +27,8 @@ export const state = {
   abortController: null,
   liveBuffer: '',
   liveRenderQueued: false,
+  materializedTags: [],
+  materializedBytes: 0,
   sourceOpen: localStorage.getItem(SOURCE_OPEN_KEY) !== '0'
 };
 

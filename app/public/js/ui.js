@@ -16,6 +16,9 @@ export const els = {
   frame: document.querySelector('#pageFrame'),
   liveBadge: document.querySelector('#liveBadge'),
   liveBadgeText: document.querySelector('#liveBadge b'),
+  materializeLayer: document.querySelector('#materializeLayer'),
+  buildStatus: document.querySelector('#buildStatus'),
+  elementTrail: document.querySelector('#elementTrail'),
   sourceRail: document.querySelector('#sourceRail'),
   sourceToggle: document.querySelector('#sourceToggle'),
   sourceCollapse: document.querySelector('#sourceCollapse'),
@@ -30,6 +33,8 @@ export const els = {
   menuToggleSource: document.querySelector('#menuToggleSource'),
   viewportShell: document.querySelector('.viewport-shell')
 };
+
+let materializeHideTimer = null;
 
 export function setStatus(kind, text) {
   els.authStatus.className = `status-pill ${kind}`;
@@ -49,6 +54,42 @@ export function setLiveMode(active, text = 'assembling elements') {
   els.liveBadge.classList.toggle('hidden', !active);
   els.liveBadgeText.textContent = text;
   if (els.sourceStatus) els.sourceStatus.textContent = active ? 'streaming' : 'idle';
+}
+
+export function resetMaterialize(address, reason = 'opening') {
+  clearTimeout(materializeHideTimer);
+  state.materializedTags = [];
+  state.materializedBytes = 0;
+  els.materializeLayer.classList.remove('hidden', 'settled');
+  els.frame.classList.add('is-materializing');
+  els.buildStatus.textContent = `${reason.replace(/-/g, ' ')}: ${address}`;
+  els.elementTrail.replaceChildren();
+}
+
+export function updateMaterialize(tags, bytes) {
+  state.materializedTags = tags.slice(-36);
+  state.materializedBytes = bytes;
+  const recent = state.materializedTags.slice(-7);
+  const count = state.materializedTags.length;
+  els.buildStatus.textContent = count
+    ? `${count} elements · ${Math.max(1, Math.round(bytes / 1024))}kb`
+    : `${Math.max(1, Math.round(bytes / 1024))}kb received`;
+  els.elementTrail.replaceChildren(...recent.map((tag, index) => {
+    const item = document.createElement('li');
+    item.style.setProperty('--stagger', String(index));
+    item.textContent = `<${tag}>`;
+    return item;
+  }));
+}
+
+export function settleMaterialize() {
+  els.materializeLayer.classList.add('settled');
+  els.frame.classList.remove('is-materializing');
+  clearTimeout(materializeHideTimer);
+  materializeHideTimer = setTimeout(() => {
+    els.materializeLayer.classList.add('hidden');
+    els.materializeLayer.classList.remove('settled');
+  }, 900);
 }
 
 export function setSourceOpen(open) {
