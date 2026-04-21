@@ -309,7 +309,32 @@ function renderInputBox(value = '') {
   return `${top}\n│ ${content} │\n${bottom}`;
 }
 
+function normalizedSearchText(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function choiceSearchText(choice) {
+  return [
+    choice.label,
+    choice.model?.id,
+    choice.model?.name,
+    choice.model?.providerName,
+    choice.model?.filePath,
+    choice.model?.baseUrl,
+    choice.kind
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function filteredChoices(choices, query) {
+  const text = normalizedSearchText(query);
+  if (!text) return choices;
+  const terms = text.split(/\s+/).filter(Boolean);
+  return choices.filter(choice => terms.every(term => choiceSearchText(choice).includes(term)));
+}
+
 function renderLaunchPicker({ choices, index, models, installed, commandBuffer, message }) {
+  const visibleChoices = filteredChoices(choices, commandBuffer);
+  const safeIndex = visibleChoices.length ? Math.min(index, visibleChoices.length - 1) : 0;
   const lines = [`${renderBanner()}`];
   if (!models.length) {
     lines.push('No local models detected.');
@@ -317,12 +342,13 @@ function renderLaunchPicker({ choices, index, models, installed, commandBuffer, 
   }
   lines.push('', renderInputBox(commandBuffer || ''));
   if (message) lines.push('', message);
+  if (commandBuffer && !visibleChoices.length) lines.push('', `No matches for "${commandBuffer}".`);
   lines.push('');
-  choices.forEach((choice, choiceIndex) => {
-    const pointer = choiceIndex === index ? color('›', '35;143;255') : ' ';
+  visibleChoices.forEach((choice, choiceIndex) => {
+    const pointer = choiceIndex === safeIndex ? color('›', '35;143;255') : ' ';
     lines.push(`${pointer} ${choice.label}`);
   });
-  lines.push('', '↑/↓ select  Enter choose  Esc cancel input  Ctrl+C quit');
+  lines.push('', 'Type to filter  ↑/↓ select  Enter choose  Esc clear  Ctrl+C quit');
   writeInteractiveFrame(lines.join('\n'));
 }
 
@@ -342,6 +368,8 @@ function selectLaunchChoice(state) {
 
     const render = () => {
       process.stdout.write('\x1b[?25l');
+      const visibleChoices = filteredChoices(state.choices, commandBuffer);
+      if (visibleChoices.length && index >= visibleChoices.length) index = visibleChoices.length - 1;
       renderLaunchPicker({ ...state, index, commandBuffer, message });
     };
 
@@ -360,38 +388,60 @@ function selectLaunchChoice(state) {
           return;
         }
         if (key === '\r' || key === '\n') {
-          const command = commandBuffer.trim();
-          done({ type: 'command', command });
+          const visibleChoices = filteredChoices(state.choices, commandBuffer);
+          if (visibleChoices.length) done({ type: 'choice', choice: visibleChoices[Math.min(index, visibleChoices.length - 1)] });
+          else {
+            message = `No matches for "${commandBuffer}".`;
+            render();
+          }
           return;
         }
         if (key === '\u007f' || key === '\b') {
           commandBuffer = commandBuffer.length > 1 ? commandBuffer.slice(0, -1) : null;
+          index = 0;
           render();
           return;
         }
         if (/^[\x20-\x7e]$/.test(key)) {
           commandBuffer += key;
+          index = 0;
           render();
         }
         return;
       }
 
       if (key === '\u001b[A' || key.toLowerCase() === 'k') {
-        index = (index - 1 + state.choices.length) % state.choices.length;
+        const visibleChoices = filteredChoices(state.choices, commandBuffer);
+        if (!visibleChoices.length) {
+          render();
+          return;
+        }
+        index = (index - 1 + visibleChoices.length) % visibleChoices.length;
         render();
         return;
       }
       if (key === '\u001b[B' || key.toLowerCase() === 'j') {
-        index = (index + 1) % state.choices.length;
+        const visibleChoices = filteredChoices(state.choices, commandBuffer);
+        if (!visibleChoices.length) {
+          render();
+          return;
+        }
+        index = (index + 1) % visibleChoices.length;
         render();
         return;
       }
       if (key === '\r' || key === '\n') {
-        done({ type: 'choice', choice: state.choices[index] });
+        const visibleChoices = filteredChoices(state.choices, commandBuffer);
+        if (visibleChoices.length) done({ type: 'choice', choice: visibleChoices[Math.min(index, visibleChoices.length - 1)] });
+        else {
+          message = `No matches for "${commandBuffer || ''}".`;
+          render();
+        }
         return;
       }
-      if (key === '/' || /^[\x20-\x7e]$/.test(key)) {
-        commandBuffer = key === '/' ? '/' : key;
+      if (/^[\x20-\x7e]$/.test(key)) {
+        commandBuffer = key;
+        index = 0;
         render();
       }
     };
@@ -517,7 +567,7 @@ async function runLaunchPicker(options = {}) {
 
       let choice = result.choice;
       if (result.type === 'command') {
-        message = 'Choose a model with Enter, or pick Codex/manual from the list.';
+        message = 'Type to filter the model list, then press Enter.';
         continue;
       }
 
