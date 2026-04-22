@@ -33,8 +33,12 @@ const PALETTE = {
   yellow: '250;176;5'
 };
 const BANNER_SUBTITLE = 'A new web where AI generates every page.';
+const LOADING_SPINNER = ['◐', '◓', '◑', '◒', '◌'];
 let interactiveScreenActive = false;
 let lastInteractiveFrame = [];
+let loadingSpinnerTimer = null;
+let loadingSpinnerIndex = 0;
+let loadingSpinnerMessage = '';
 
 function readPackageVersion() {
   try {
@@ -94,7 +98,7 @@ function printHelp() {
     renderBanner(),
     '',
     dim('  USAGE'),
-    `    ${accent('slopweb')} [start] [--port 8787] [--host localhost] [--model llama3.2] [--strict-port] [--open]`,
+    `    ${accent('slopweb')} [start] [--port 8787] [--host localhost] [--model llama3.2] [--strict-port] [--no-open]`,
     `    ${accent('slopweb open')} [-p 8787]`,
     `    ${accent('slopweb models')}`,
     `    ${accent('slopweb health')} [-p 8787]`,
@@ -155,7 +159,9 @@ async function main() {
 async function startServer(defaults = {}) {
   const requestedPort = Number(takeFlag('--port', '-p') || process.env.PORT || 8787);
   const strictPort = hasFlag('--strict-port');
-  const openBrowser = hasFlag('--open', '-o') || Boolean(defaults.open);
+  hasFlag('--open', '-o');
+  const noOpen = hasFlag('--no-open');
+  const openBrowser = !noOpen && process.env.SLOPWEB_NO_OPEN !== '1' && !process.env.CI;
   const lan = hasFlag('--lan');
   const skipPicker = hasFlag('--no-picker', '--yes');
   const forceLocal = hasFlag('--local') || hasFlag('--ai-sdk');
@@ -441,6 +447,7 @@ function enterInteractiveScreen() {
 }
 
 function exitInteractiveScreen() {
+  stopLaunchLoadingSpinner();
   if (!interactiveScreenActive) return;
   lastInteractiveFrame = [];
   process.stdout.write('\x1b[?25h\x1b[?1049l');
@@ -567,6 +574,7 @@ function pickerHint() {
 }
 
 function renderLaunchPicker({ choices, index, models, installed, commandBuffer, message }) {
+  stopLaunchLoadingSpinner();
   const visibleChoices = filteredChoices(choices, commandBuffer);
   const safeIndex = visibleChoices.length ? Math.min(index, visibleChoices.length - 1) : 0;
   const lines = [`${renderBanner()}`];
@@ -626,8 +634,8 @@ function mergeModels(primary, secondary) {
   return merged;
 }
 
-function renderLaunchLoading(message = 'Scanning local models') {
-  const dot = supportsColor() ? color('◌', PALETTE.accent) : '◌';
+function loadingFrame(message = loadingSpinnerMessage) {
+  const dot = supportsColor() ? color(LOADING_SPINNER[loadingSpinnerIndex % LOADING_SPINNER.length], PALETTE.accent) : LOADING_SPINNER[loadingSpinnerIndex % LOADING_SPINNER.length];
   const lines = [
     renderBanner(),
     '',
@@ -637,7 +645,26 @@ function renderLaunchLoading(message = 'Scanning local models') {
     '',
     `  ${accent('Ctrl+C')} ${dim('quit')}`
   ];
-  writeInteractiveFrame(lines.join('\n'), { row: rowForFrameLine(lines, 2) + 1, column: inputCursorColumn('') });
+  return { text: lines.join('\n'), cursor: { row: rowForFrameLine(lines, 2) + 1, column: inputCursorColumn('') } };
+}
+
+function stopLaunchLoadingSpinner() {
+  if (!loadingSpinnerTimer) return;
+  clearInterval(loadingSpinnerTimer);
+  loadingSpinnerTimer = null;
+}
+
+function renderLaunchLoading(message = 'Scanning local models') {
+  loadingSpinnerMessage = message;
+  const frame = loadingFrame();
+  writeInteractiveFrame(frame.text, frame.cursor);
+  if (loadingSpinnerTimer || !process.stdout.isTTY) return;
+  loadingSpinnerTimer = setInterval(() => {
+    loadingSpinnerIndex += 1;
+    const next = loadingFrame();
+    writeInteractiveFrame(next.text, next.cursor);
+  }, 120);
+  loadingSpinnerTimer.unref?.();
 }
 
 function selectLaunchChoice(state) {
