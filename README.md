@@ -23,23 +23,6 @@ Pick a local model or Codex in the launcher, then open the printed local URL.
   <img src="./assets/screenshot-launcher.png" alt="Slopweb launcher model picker" width="680" />
 </p>
 
-## Commands
-
-```powershell
-slopweb                         # start the launcher and server
-slopweb open                    # start and open the browser
-slopweb models                  # list detected local models
-slopweb --local --model qwen2.5-coder:7b
-slopweb --codex                 # use Codex OAuth
-slopweb login                   # connect Codex
-slopweb status                  # check local AI and Codex
-```
-
-## Requirements
-
-- Node.js `18.17` or newer
-- A local OpenAI-compatible model server, or Codex CLI access
-
 <details>
 <summary>Local models and custom endpoints</summary>
 
