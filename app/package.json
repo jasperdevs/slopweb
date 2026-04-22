@@ -1,6 +1,6 @@
 {
   "name": "slopweb",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A new web where AI generates every page.",
   "type": "module",
   "private": true,
