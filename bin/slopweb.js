@@ -34,7 +34,7 @@ const PALETTE = {
 };
 const BANNER_SUBTITLE = 'A new web where AI generates every page.';
 const LOADING_SPINNER = ['◐', '◓', '◑', '◒', '◌'];
-const LOADING_SPINNER_MS = 55;
+const LOADING_SPINNER_MS = 25;
 const FRAME_PAD_X = 3;
 const FRAME_PAD_Y = 1;
 let interactiveScreenActive = false;
