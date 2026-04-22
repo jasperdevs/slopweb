@@ -1,10 +1,17 @@
 {
   "type": "object",
-  "required": ["title", "summary", "html"],
+  "required": ["title", "summary", "html", "address", "model", "authRequired", "authMessage"],
   "properties": {
     "title": { "type": "string" },
     "summary": { "type": "string" },
-    "html": { "type": "string" }
+    "html": { "type": "string" },
+    "address": { "type": "string" },
+    "model": { "type": "string" },
+    "authRequired": { "type": "boolean" },
+    "authMessage": { "type": "string" },
+    "savedFilePath": { "type": "string" },
+    "savedUrl": { "type": "string" },
+    "savedDisplayPath": { "type": "string" }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }

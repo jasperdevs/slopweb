@@ -1,6 +1,6 @@
 {
   "name": "slopweb",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "A new web where AI generates every page.",
   "type": "module",
   "packageManager": "pnpm@10.33.0",
@@ -8,7 +8,12 @@
     "slopweb": "bin/slopweb.js"
   },
   "files": [
-    "app",
+    "app/lib",
+    "app/public",
+    "app/schema",
+    "app/package.json",
+    "app/README.md",
+    "app/server.js",
     "assets",
     "bin",
     "scripts",
@@ -18,8 +23,10 @@
     "start": "node ./bin/slopweb.js",
     "dev": "node ./bin/slopweb.js",
     "check": "node scripts/check.mjs",
+    "test": "node scripts/test.mjs",
+    "bench:stream": "node scripts/stream-bench.mjs",
     "pack:dry": "npm pack --dry-run",
-    "prepublishOnly": "npm run check"
+    "prepublishOnly": "npm run check && npm test"
   },
   "keywords": [
     "ai",

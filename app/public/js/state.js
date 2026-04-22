@@ -2,26 +2,30 @@ const TABS_KEY = 'slopweb-tabs';
 const ACTIVE_TAB_KEY = 'slopweb-active-tab';
 const SOURCE_OPEN_KEY = 'slopweb-source-open';
 
-function newTab(address = 'synthetic://home') {
+function newTab(address = 'slopweb://home') {
   return {
     id: crypto.randomUUID(),
     title: 'New Tab',
     entries: [address],
     index: 0,
     html: '',
-    source: ''
+    source: '',
+    savedUrl: '',
+    savedDisplayPath: ''
   };
 }
 
 function normalizeTab(tab) {
-  const entries = Array.isArray(tab?.entries) ? tab.entries.map(String).filter(Boolean).slice(-80) : ['synthetic://home'];
+  const entries = Array.isArray(tab?.entries) ? tab.entries.map(String).filter(Boolean).slice(-80) : ['slopweb://home'];
   return {
     id: String(tab?.id || crypto.randomUUID()),
     title: String(tab?.title || 'New Tab').slice(0, 120),
-    entries: entries.length ? entries : ['synthetic://home'],
+    entries: entries.length ? entries : ['slopweb://home'],
     index: Math.min(Math.max(Number(tab?.index || 0), 0), Math.max(entries.length - 1, 0)),
-    html: String(tab?.html || ''),
-    source: String(tab?.source || tab?.html || '')
+    html: '',
+    source: '',
+    savedUrl: String(tab?.savedUrl || ''),
+    savedDisplayPath: String(tab?.savedDisplayPath || '')
   };
 }
 
@@ -51,7 +55,8 @@ export const state = {
   liveRenderQueued: false,
   renderFrameQueued: false,
   sourceRenderQueued: false,
-  sourceOpen: true
+  sourceOpen: localStorage.getItem(SOURCE_OPEN_KEY) !== '0',
+  sourceWidth: Number(localStorage.getItem('slopweb-source-width')) || 360
 };
 
 export function activeTab() {
@@ -67,9 +72,20 @@ export function commitActiveTab() {
   tab.source = state.liveBuffer || state.currentHtml || '';
 }
 
+function persistedTab(tab) {
+  return {
+    id: tab.id,
+    title: tab.title,
+    entries: Array.isArray(tab.entries) ? tab.entries.slice(-80) : ['slopweb://home'],
+    index: Number(tab.index || 0),
+    savedUrl: tab.savedUrl || '',
+    savedDisplayPath: tab.savedDisplayPath || ''
+  };
+}
+
 export function saveHistory() {
   commitActiveTab();
-  localStorage.setItem(TABS_KEY, JSON.stringify(state.tabs));
+  localStorage.setItem(TABS_KEY, JSON.stringify(state.tabs.map(persistedTab)));
   localStorage.setItem(ACTIVE_TAB_KEY, state.activeTabId);
 }
 
@@ -89,7 +105,7 @@ export function activateTab(id) {
   return tab;
 }
 
-export function createTab(address = 'synthetic://home') {
+export function createTab(address = 'slopweb://home') {
   commitActiveTab();
   const tab = newTab(address);
   state.tabs.push(tab);
@@ -119,4 +135,8 @@ export function updateActiveTabTitle(title) {
 
 export function saveSourceOpen() {
   localStorage.setItem(SOURCE_OPEN_KEY, state.sourceOpen ? '1' : '0');
+}
+
+export function saveSourceWidth() {
+  localStorage.setItem('slopweb-source-width', String(state.sourceWidth));
 }

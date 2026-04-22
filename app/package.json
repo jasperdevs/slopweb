@@ -1,7 +1,7 @@
 {
   "name": "slopweb",
-  "version": "1.0.0",
-  "description": "A local shell where every page is generated as self-contained HTML.",
+  "version": "1.0.2",
+  "description": "A new web where AI generates every page.",
   "type": "module",
   "private": true,
   "scripts": {

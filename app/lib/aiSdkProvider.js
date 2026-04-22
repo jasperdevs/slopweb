@@ -2,6 +2,7 @@ import { config } from './config.js';
 import { resolveLocalModel } from './localModels.js';
 
 const warmups = new Map();
+let loadedModelCache = null;
 
 function timeoutOptions() {
   const totalMs = Number(config.aiSdkTimeoutMs || 120_000);
@@ -52,6 +53,35 @@ export async function aiSdkStatus() {
 }
 
 export async function loadAiSdkModel() {
+  const cacheKey = [
+    config.aiSdkBaseUrl,
+    config.aiSdkModel,
+    process.env.SLOPWEB_BASE_URL,
+    process.env.AI_SDK_BASE_URL,
+    process.env.SLOPWEB_MODEL,
+    process.env.AI_SDK_MODEL,
+    process.env.OLLAMA_HOST
+  ].map(value => String(value || '')).join('\n');
+  const now = Date.now();
+  if (loadedModelCache?.key === cacheKey && loadedModelCache.value && loadedModelCache.expiresAt > now) {
+    return loadedModelCache.value;
+  }
+  if (loadedModelCache?.key === cacheKey && loadedModelCache.promise) return loadedModelCache.promise;
+
+  const promise = loadAiSdkModelFresh()
+    .then(value => {
+      loadedModelCache = { key: cacheKey, value, expiresAt: Date.now() + 60_000, promise: null };
+      return value;
+    })
+    .catch(error => {
+      if (loadedModelCache?.promise === promise) loadedModelCache = null;
+      throw error;
+    });
+  loadedModelCache = { key: cacheKey, value: null, expiresAt: 0, promise };
+  return promise;
+}
+
+async function loadAiSdkModelFresh() {
   const resolved = await resolveLocalModel({ requireLive: true });
   if (!resolved) {
     throw new Error('No local model server detected. Run `slopweb models`, start a local model server, or pass --base-url and --model.');
@@ -71,8 +101,8 @@ export async function loadAiSdkModel() {
   return {
     generateText,
     streamText,
-    smoothStream,
     model: provider(resolved.id),
+    resolved,
     label: `${resolved.id} via ${resolved.providerName}`,
     providerOptions: undefined,
     timeout: timeoutOptions()
@@ -80,8 +110,13 @@ export async function loadAiSdkModel() {
 }
 
 export async function warmLocalModel() {
-  const resolved = await resolveLocalModel({ requireLive: true });
-  if (!resolved) return null;
+  let loaded;
+  try {
+    loaded = await loadAiSdkModel();
+  } catch {
+    return null;
+  }
+  const resolved = loaded.resolved;
 
   const key = `${resolved.baseUrl}|${resolved.id}`.toLowerCase();
   if (warmups.has(key)) return warmups.get(key);

@@ -7,6 +7,7 @@ import { unique, stripAnsi } from './utils.js';
 
 let resolvedCodexBinCache = null;
 let codexStatusCache = null;
+const codexSpawnSpecsCache = new Map();
 const CODEX_STATUS_CACHE_MS = 30_000;
 
 function hasPathSeparator(value) {
@@ -270,6 +271,9 @@ function makeWindowsShellSpec(command, args, label = `${command} via cmd.exe PAT
 }
 
 export function makeCodexSpawnSpecs(rawCommand = config.codexBin, args = []) {
+  const cacheKey = `${process.platform}\u0000${process.env.PATH || ''}\u0000${rawCommand || ''}\u0000${JSON.stringify(args)}`;
+  if (codexSpawnSpecsCache.has(cacheKey)) return codexSpawnSpecsCache.get(cacheKey);
+
   const specs = [];
   const seen = new Set();
   const addSpec = spec => {
@@ -293,6 +297,7 @@ export function makeCodexSpawnSpecs(rawCommand = config.codexBin, args = []) {
     addSpec(makeSpawnSpecForCandidate('npm', ['exec', '--yes', '@openai/codex', '--', ...args]));
   }
 
+  codexSpawnSpecsCache.set(cacheKey, specs);
   return specs;
 }
 
@@ -393,7 +398,11 @@ export function spawnCaptureWithSpec(spec, options = {}) {
     if (options.signal?.aborted) abortChild();
     else options.signal?.addEventListener?.('abort', abortChild, { once: true });
 
-    child.stdout.on('data', chunk => { stdout += chunk.toString('utf8'); });
+    child.stdout.on('data', chunk => {
+      const text = chunk.toString('utf8');
+      stdout += text;
+      options.onStdout?.(stripAnsi(text));
+    });
     child.stderr.on('data', chunk => { stderr += chunk.toString('utf8'); });
     child.on('error', error => {
       cleanup();
@@ -471,4 +480,32 @@ export async function codexStatus() {
     codexStatusCache = { createdAt: Date.now(), status };
     return status;
   }
+}
+
+export function warmCodexCli() {
+  const spec = makeCodexSpawnSpecs(config.codexBin, ['--version'])[0];
+  if (!spec) return Promise.resolve(null);
+  return new Promise(resolve => {
+    let settled = false;
+    let child = null;
+    const done = value => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const timer = setTimeout(() => {
+      child?.kill('SIGTERM');
+      done(null);
+    }, 5_000);
+    timer.unref?.();
+    try {
+      child = spawnWithSpec(spec, { stdio: ['ignore', 'ignore', 'ignore'] });
+    } catch {
+      done(null);
+      return;
+    }
+    child.on('error', () => done(null));
+    child.on('close', code => done(code));
+  });
 }

@@ -1,30 +1,62 @@
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { debugTiming, nowMs } from './diagnostics.js';
 
 export const LOCAL_MODELS_CONFIG = path.join(os.homedir(), '.slopweb', 'models.json');
 
 const DETECT_TIMEOUT_MS = Number(process.env.SLOPWEB_DETECT_TIMEOUT_MS || 700);
+const LIVE_DETECT_TIMEOUT_MS = Number(process.env.SLOPWEB_LIVE_DETECT_TIMEOUT_MS || 220);
 const DETECT_CACHE_MS = Number(process.env.SLOPWEB_DETECT_CACHE_MS || 5_000);
 const MAX_MODEL_FILES = 80;
 let localModelsCache = null;
+let liveModelsCache = null;
+let firstLiveModelCache = null;
+let configCache = null;
+const commandPathCache = new Map();
+const providerProbeCache = new Map();
+const PROVIDER_PRIORITY = new Map([
+  ['config', 0],
+  ['custom1', 5],
+  ['custom2', 6],
+  ['ollama', 10],
+  ['lmstudio', 20],
+  ['llamacpp', 30],
+  ['vllm', 40],
+  ['sglang', 50],
+  ['jan', 60],
+  ['msty', 70],
+  ['textgen', 80],
+  ['koboldcpp', 90],
+  ['localai', 100],
+  ['litellm', 110],
+  ['tabbyapi', 120],
+  ['aphrodite', 130],
+  ['xinference', 140],
+  ['openwebui', 150],
+  ['anythingllm', 160],
+  ['gpt4all', 170]
+]);
 
 const OPENAI_COMPAT_PROBES = [
   { providerId: 'lmstudio', name: 'LM Studio', baseUrl: process.env.LMSTUDIO_BASE_URL || process.env.LM_STUDIO_BASE_URL || 'http://127.0.0.1:1234/v1' },
   { providerId: 'llamacpp', name: 'llama.cpp / llamafile', baseUrl: process.env.LLAMA_CPP_BASE_URL || process.env.LLAMACPP_BASE_URL || 'http://127.0.0.1:8080/v1' },
   { providerId: 'vllm', name: 'vLLM', baseUrl: process.env.VLLM_BASE_URL || 'http://127.0.0.1:8000/v1' },
   { providerId: 'sglang', name: 'SGLang', baseUrl: process.env.SGLANG_BASE_URL || 'http://127.0.0.1:30000/v1' },
-  { providerId: 'jan', name: 'Jan', baseUrl: process.env.JAN_BASE_URL || 'http://127.0.0.1:1337/v1' },
+  { providerId: 'jan', name: 'Jan', baseUrl: process.env.JAN_BASE_URL || 'http://127.0.0.1:1337/v1', apiKey: process.env.JAN_API_KEY || '' },
+  { providerId: 'msty', name: 'Msty', baseUrl: process.env.MSTY_BASE_URL || 'http://127.0.0.1:10000/v1' },
   { providerId: 'textgen', name: 'text-generation-webui', baseUrl: process.env.TEXTGEN_BASE_URL || 'http://127.0.0.1:5000/v1' },
   { providerId: 'koboldcpp', name: 'KoboldCpp', baseUrl: process.env.KOBOLDCPP_BASE_URL || 'http://127.0.0.1:5001/v1' },
-  { providerId: 'localai', name: 'LocalAI', baseUrl: process.env.LOCALAI_BASE_URL || 'http://127.0.0.1:8080/v1' },
-  { providerId: 'litellm', name: 'LiteLLM', baseUrl: process.env.LITELLM_BASE_URL || 'http://127.0.0.1:4000/v1' },
+  { providerId: 'localai', name: 'LocalAI', baseUrl: process.env.LOCALAI_BASE_URL || 'http://127.0.0.1:8080/v1', apiKey: process.env.LOCALAI_API_KEY || '' },
+  { providerId: 'litellm', name: 'LiteLLM', baseUrl: process.env.LITELLM_BASE_URL || 'http://127.0.0.1:4000/v1', apiKey: process.env.LITELLM_API_KEY || '' },
   { providerId: 'tabbyapi', name: 'TabbyAPI', baseUrl: process.env.TABBYAPI_BASE_URL || 'http://127.0.0.1:5000/v1' },
   { providerId: 'aphrodite', name: 'Aphrodite Engine', baseUrl: process.env.APHRODITE_BASE_URL || 'http://127.0.0.1:2242/v1' },
   { providerId: 'xinference', name: 'Xinference', baseUrl: process.env.XINFERENCE_BASE_URL || 'http://127.0.0.1:9997/v1' },
-  { providerId: 'openwebui', name: 'Open WebUI', baseUrl: process.env.OPENWEBUI_BASE_URL || process.env.OPEN_WEBUI_BASE_URL || 'http://127.0.0.1:3000/v1' },
-  { providerId: 'anythingllm', name: 'AnythingLLM', baseUrl: process.env.ANYTHINGLLM_BASE_URL || 'http://127.0.0.1:3001/v1' }
+  { providerId: 'openwebui', name: 'Open WebUI', baseUrl: process.env.OPENWEBUI_BASE_URL || process.env.OPEN_WEBUI_BASE_URL || 'http://127.0.0.1:3000/v1', apiKey: process.env.OPENWEBUI_API_KEY || process.env.OPEN_WEBUI_API_KEY || '' },
+  { providerId: 'anythingllm', name: 'AnythingLLM', baseUrl: process.env.ANYTHINGLLM_BASE_URL || 'http://127.0.0.1:3001/v1', apiKey: process.env.ANYTHINGLLM_API_KEY || '' },
+  { providerId: 'gpt4all', name: 'GPT4All', baseUrl: process.env.GPT4ALL_BASE_URL || 'http://127.0.0.1:4891/v1' }
 ];
 
 function normalizeUrl(value) {
@@ -50,11 +82,11 @@ function urlJoin(base, pathname) {
   return `${normalizeUrl(base)}/${String(pathname || '').replace(/^\/+/, '')}`;
 }
 
-async function fetchJson(url, timeoutMs = DETECT_TIMEOUT_MS) {
+async function fetchJson(url, timeoutMs = DETECT_TIMEOUT_MS, headers = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, { signal: controller.signal, headers });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return await response.json();
   } finally {
@@ -82,9 +114,20 @@ function makeModel(provider, id, extra = {}) {
   };
 }
 
+function providerAuthHeaders(provider) {
+  const apiKey = String(provider?.apiKey || '').trim();
+  return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
+}
+
 function parseOpenAiModels(json, provider) {
-  const items = Array.isArray(json?.data) ? json.data : [];
-  return items.map(item => makeModel(provider, item?.id || item?.name, { name: item?.name })).filter(Boolean);
+  const items = Array.isArray(json?.data) ? json.data
+    : Array.isArray(json?.models) ? json.models
+      : Array.isArray(json) ? json
+        : [];
+  return items.map(item => {
+    if (typeof item === 'string') return makeModel(provider, item);
+    return makeModel(provider, item?.id || item?.name || item?.model, { name: item?.name || item?.model });
+  }).filter(Boolean);
 }
 
 function parseOllamaModels(json, provider) {
@@ -96,7 +139,7 @@ function dedupeModels(models) {
   const seen = new Set();
   const deduped = [];
   for (const model of models) {
-    const key = `${model.baseUrl}|${model.id}`.toLowerCase();
+    const key = model.filePath ? `file:${path.resolve(model.filePath)}`.toLowerCase() : `${model.baseUrl}|${model.id}`.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
     deduped.push(model);
@@ -104,40 +147,64 @@ function dedupeModels(models) {
   return deduped;
 }
 
+function providerPriority(model) {
+  const id = String(model?.providerId || '').toLowerCase();
+  if (model?.source === 'config') return PROVIDER_PRIORITY.get('config');
+  return PROVIDER_PRIORITY.get(id) ?? 500;
+}
+
 function configuredProviders(raw) {
-  const providers = raw && typeof raw === 'object' && raw.providers && typeof raw.providers === 'object'
-    ? raw.providers
-    : {};
-  return Object.entries(providers).map(([id, provider]) => {
+  const providers = raw && typeof raw === 'object' && raw.providers && typeof raw.providers === 'object' && !Array.isArray(raw.providers)
+    ? Object.entries(raw.providers)
+    : Array.isArray(raw?.providers)
+      ? raw.providers.map((provider, index) => [provider?.id || provider?.providerId || `custom${index + 1}`, provider])
+      : [];
+  return providers.map(([id, provider]) => {
     const baseUrl = openAiBaseUrl(provider?.baseUrl || provider?.baseURL || provider?.url);
     const models = Array.isArray(provider?.models) ? provider.models : [];
     if (!baseUrl) return null;
+    const providerId = String(provider?.providerId || id);
+    const name = String(provider?.name || id);
     return {
-      providerId: String(id),
-      name: String(provider?.name || id),
+      providerId,
+      name,
       baseUrl,
+      apiKey: provider?.apiKey || provider?.key || '',
       source: 'config',
       models: models
-        .map(model => makeModel({ providerId: String(id), name: String(provider?.name || id), baseUrl, source: 'config' }, typeof model === 'string' ? model : model?.id, { name: typeof model === 'object' ? model?.name : '' }))
+        .map(model => makeModel({ providerId, name, baseUrl, source: 'config' }, typeof model === 'string' ? model : model?.id, { name: typeof model === 'object' ? model?.name : '' }))
         .filter(Boolean)
     };
   }).filter(Boolean);
 }
 
 export async function readLocalModelsConfig() {
-  try {
-    return JSON.parse(await readFile(LOCAL_MODELS_CONFIG, 'utf8'));
-  } catch {
-    return { providers: {} };
-  }
+  const now = Date.now();
+  if (configCache?.value && configCache.expiresAt > now) return configCache.value;
+  if (configCache?.promise) return configCache.promise;
+
+  const promise = readFile(LOCAL_MODELS_CONFIG, 'utf8')
+    .then(text => JSON.parse(text))
+    .catch(() => ({ providers: {} }))
+    .then(value => {
+      configCache = { value, expiresAt: Date.now() + DETECT_CACHE_MS, promise: null };
+      return value;
+    });
+  configCache = { value: null, expiresAt: 0, promise };
+  return promise;
 }
 
 function commandPath(command) {
+  const key = `${process.platform}|${process.env.PATH || ''}|${command}`;
+  if (commandPathCache.has(key)) return commandPathCache.get(key);
   const tool = process.platform === 'win32' ? 'where.exe' : 'command';
   const args = process.platform === 'win32' ? [command] : ['-v', command];
   const result = spawnSync(tool, args, { encoding: 'utf8', shell: process.platform !== 'win32' });
-  if (result.status !== 0) return '';
-  return String(result.stdout || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean)[0] || '';
+  const found = result.status === 0
+    ? String(result.stdout || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean)[0] || ''
+    : '';
+  commandPathCache.set(key, found);
+  return found;
 }
 
 function ollamaOrigin() {
@@ -156,17 +223,62 @@ function makeOllamaProvider(source = 'detected', live = true) {
   };
 }
 
-async function probeOllama() {
+async function probeOllama(timeoutMs = DETECT_TIMEOUT_MS) {
   const origin = ollamaOrigin();
   const provider = makeOllamaProvider('detected', true);
-  const json = await fetchJson(urlJoin(origin, '/api/tags'));
+  const json = await fetchJson(urlJoin(origin, '/api/tags'), timeoutMs);
   return parseOllamaModels(json, provider);
 }
 
-async function probeOpenAiProvider(provider) {
+async function probeOpenAiProvider(provider, options = {}) {
   const baseUrl = openAiBaseUrl(provider.baseUrl);
-  const json = await fetchJson(urlJoin(baseUrl, '/models'));
-  return parseOpenAiModels(json, { ...provider, baseUrl });
+  const cacheKey = `openai:${baseUrl}:${provider.apiKey ? 'auth' : 'anon'}`.toLowerCase();
+  const now = Date.now();
+  if (options.cache !== false) {
+    const cached = providerProbeCache.get(cacheKey);
+    if (cached?.value && cached.expiresAt > now) return cached.value;
+    if (cached?.promise) return cached.promise;
+  }
+
+  const promise = fetchJson(urlJoin(baseUrl, '/models'), Number(options.timeoutMs || DETECT_TIMEOUT_MS), providerAuthHeaders(provider))
+    .then(json => {
+      const models = parseOpenAiModels(json, { ...provider, baseUrl });
+      providerProbeCache.set(cacheKey, { value: models, expiresAt: Date.now() + DETECT_CACHE_MS, promise: null });
+      return models;
+    })
+    .catch(error => {
+      const cached = providerProbeCache.get(cacheKey);
+      if (cached?.promise === promise) providerProbeCache.delete(cacheKey);
+      throw error;
+    });
+
+  providerProbeCache.set(cacheKey, { value: null, expiresAt: 0, promise });
+  return promise;
+}
+
+async function probeOllamaCached(options = {}) {
+  const origin = ollamaOrigin();
+  const cacheKey = `ollama:${origin}`.toLowerCase();
+  const now = Date.now();
+  if (options.cache !== false) {
+    const cached = providerProbeCache.get(cacheKey);
+    if (cached?.value && cached.expiresAt > now) return cached.value;
+    if (cached?.promise) return cached.promise;
+  }
+
+  const promise = probeOllama(Number(options.timeoutMs || DETECT_TIMEOUT_MS))
+    .then(models => {
+      providerProbeCache.set(cacheKey, { value: models, expiresAt: Date.now() + DETECT_CACHE_MS, promise: null });
+      return models;
+    })
+    .catch(error => {
+      const cached = providerProbeCache.get(cacheKey);
+      if (cached?.promise === promise) providerProbeCache.delete(cacheKey);
+      throw error;
+    });
+
+  providerProbeCache.set(cacheKey, { value: null, expiresAt: 0, promise });
+  return promise;
 }
 
 function configuredSearchRoots() {
@@ -207,10 +319,54 @@ function configuredSearchRoots() {
 }
 
 function configuredOpenAiProbes() {
-  return String(process.env.SLOPWEB_BASE_URLS || '')
+  const explicit = String(process.env.SLOPWEB_BASE_URLS || '')
     .split(/[;,]/g)
     .map((value, index) => ({ providerId: `custom${index + 1}`, name: 'Custom local endpoint', baseUrl: value.trim() }))
     .filter(provider => provider.baseUrl);
+  const envUrls = [
+    ['OPENAI_BASE_URL', process.env.OPENAI_BASE_URL],
+    ['OPENAI_API_BASE', process.env.OPENAI_API_BASE],
+    ['OPENAI_API_BASE_URL', process.env.OPENAI_API_BASE_URL]
+  ].map(([name, value]) => ({
+    providerId: name.toLowerCase(),
+    name: 'OpenAI-compatible local endpoint',
+    baseUrl: value,
+    apiKey: process.env.OPENAI_API_KEY || ''
+  })).filter(provider => provider.baseUrl && isLikelyLocalUrl(provider.baseUrl));
+  return dedupeProviders([...explicit, ...envUrls]);
+}
+
+function dedupeProviders(providers) {
+  const seen = new Set();
+  return providers.filter(provider => {
+    const key = openAiBaseUrl(provider.baseUrl).toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function isLikelyLocalUrl(value) {
+  try {
+    const hostname = new URL(normalizeUrl(value)).hostname.toLowerCase();
+    if (hostname === 'localhost' || hostname === '::1' || hostname === '[::1]' || hostname === '0.0.0.0' || hostname === 'host.docker.internal') return true;
+    if (hostname.endsWith('.local')) return true;
+    if (/^127\./.test(hostname) || /^10\./.test(hostname) || /^192\.168\./.test(hostname)) return true;
+    const match = hostname.match(/^172\.(\d+)\./);
+    return Boolean(match && Number(match[1]) >= 16 && Number(match[1]) <= 31);
+  } catch {
+    return false;
+  }
+}
+
+function runJsonCommand(command, args, timeout = 2500) {
+  const result = spawnSync(command, args, { encoding: 'utf8', timeout });
+  if (result.status !== 0 || !result.stdout.trim()) return null;
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    return null;
+  }
 }
 
 async function listDirEntries(dir) {
@@ -271,6 +427,143 @@ async function detectGgufModels() {
   })).filter(Boolean);
 }
 
+function resolveModelFilePath(filePath) {
+  if (!filePath) return '';
+  if (path.isAbsolute(filePath) && existsSync(filePath)) return filePath;
+  for (const root of configuredSearchRoots()) {
+    const candidate = path.join(root, filePath);
+    if (existsSync(candidate)) return candidate;
+  }
+  return '';
+}
+
+function lmStudioModelId(item) {
+  return item?.identifier || item?.modelIdentifier || item?.indexedModelIdentifier || item?.path || item?.modelKey || item?.displayName || '';
+}
+
+async function detectLmStudioCliModels() {
+  const command = commandPath('lms');
+  if (!command) return [];
+  const json = runJsonCommand(command, ['ls', '--llm', '--json'], 6000);
+  const items = Array.isArray(json) ? json : [];
+  const provider = {
+    providerId: 'lmstudio',
+    name: 'LM Studio',
+    baseUrl: process.env.LMSTUDIO_BASE_URL || process.env.LM_STUDIO_BASE_URL || 'http://127.0.0.1:1234/v1',
+    source: 'catalog',
+    live: false,
+    runtime: command
+  };
+  return items.map(item => makeModel(provider, lmStudioModelId(item), {
+    name: item?.displayName || item?.modelKey || '',
+    filePath: resolveModelFilePath(item?.path || ''),
+    source: 'catalog',
+    live: false
+  })).filter(Boolean);
+}
+
+function lmStudioServerBaseUrl(status) {
+  const port = status?.port || status?.serverPort || status?.portNumber || 1234;
+  return process.env.LMSTUDIO_BASE_URL || process.env.LM_STUDIO_BASE_URL || `http://127.0.0.1:${port}/v1`;
+}
+
+function detectRunningLmStudioModels() {
+  const command = commandPath('lms');
+  if (!command) return [];
+  const status = runJsonCommand(command, ['server', 'status', '--json']);
+  if (!status?.running) return [];
+  const json = runJsonCommand(command, ['ps', '--json']);
+  const items = Array.isArray(json) ? json : [];
+  const provider = {
+    providerId: 'lmstudio',
+    name: 'LM Studio',
+    baseUrl: lmStudioServerBaseUrl(status),
+    source: 'process',
+    live: true,
+    runtime: command
+  };
+  return items.map(item => makeModel(provider, lmStudioModelId(item), {
+    name: item?.displayName || item?.modelKey || '',
+    filePath: resolveModelFilePath(item?.path || ''),
+    source: 'process',
+    live: true
+  })).filter(Boolean);
+}
+
+function splitCommandLine(value) {
+  const args = [];
+  let current = '';
+  let quote = '';
+  for (const char of String(value || '')) {
+    if (quote) {
+      if (char === quote) quote = '';
+      else current += char;
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (/\s/.test(char)) {
+      if (current) {
+        args.push(current);
+        current = '';
+      }
+    } else {
+      current += char;
+    }
+  }
+  if (current) args.push(current);
+  return args;
+}
+
+function argValue(args, name) {
+  const index = args.findIndex(arg => arg === name);
+  return index >= 0 ? args[index + 1] || '' : '';
+}
+
+function runningLlamaServerCommandLines() {
+  if (process.platform === 'win32') {
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-Command',
+      "Get-CimInstance Win32_Process -Filter \"name = 'llama-server.exe'\" | Select-Object -ExpandProperty CommandLine | ConvertTo-Json -Compress"
+    ], { encoding: 'utf8', timeout: 2500 });
+    if (result.status !== 0 || !result.stdout.trim()) return [];
+    try {
+      const parsed = JSON.parse(result.stdout);
+      return (Array.isArray(parsed) ? parsed : [parsed]).filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
+  const result = spawnSync('ps', ['-eo', 'args='], { encoding: 'utf8', timeout: 2500 });
+  if (result.status !== 0 || !result.stdout) return [];
+  return result.stdout.split('\n').filter(line => /\bllama-server\b/.test(line));
+}
+
+function detectRunningLlamaServerModels() {
+  const runtime = commandPath('llama-server');
+  return runningLlamaServerCommandLines().map(commandLine => {
+    const args = splitCommandLine(commandLine);
+    const filePath = argValue(args, '--model') || argValue(args, '-m');
+    const port = argValue(args, '--port') || '8080';
+    const host = argValue(args, '--host') || '127.0.0.1';
+    if (!filePath) return null;
+    const provider = {
+      providerId: 'llamacpp',
+      name: 'llama.cpp',
+      baseUrl: `http://${host}:${port}/v1`,
+      source: 'process',
+      live: true,
+      runtime: runtime || args[0] || ''
+    };
+    return makeModel(provider, path.basename(filePath, path.extname(filePath)), {
+      filePath,
+      name: path.basename(filePath, path.extname(filePath)),
+      source: 'process',
+      live: true
+    });
+  }).filter(Boolean);
+}
+
 async function detectOllamaCliModels() {
   const command = commandPath('ollama');
   if (!command) return [];
@@ -313,12 +606,13 @@ async function detectOllamaManifests() {
 }
 
 async function detectModelCatalog() {
-  const [ollamaCli, ollamaManifests, ggufModels] = await Promise.all([
+  const [ollamaCli, ollamaManifests, lmStudioCli, ggufModels] = await Promise.all([
     detectOllamaCliModels().catch(() => []),
     detectOllamaManifests().catch(() => []),
+    detectLmStudioCliModels().catch(() => []),
     detectGgufModels().catch(() => [])
   ]);
-  return [...ollamaCli, ...ollamaManifests, ...ggufModels];
+  return [...ollamaCli, ...ollamaManifests, ...lmStudioCli, ...ggufModels];
 }
 
 function localModelsCacheKey() {
@@ -336,6 +630,8 @@ function localModelsCacheKey() {
 function sortDetectedModels(models) {
   return [...models].sort((a, b) => {
     if (a.live !== b.live) return a.live ? -1 : 1;
+    const priorityDelta = providerPriority(a) - providerPriority(b);
+    if (priorityDelta) return priorityDelta;
     if (a.source !== b.source) return a.source === 'detected' ? -1 : 1;
     return `${a.providerName} ${a.id}`.localeCompare(`${b.providerName} ${b.id}`);
   });
@@ -348,21 +644,57 @@ async function scanLocalModels() {
   const probes = [];
 
   if (!configuredProviderIds.has('ollama')) {
-    probes.push(probeOllama().catch(() => []));
+    probes.push(probeOllamaCached({ timeoutMs: LIVE_DETECT_TIMEOUT_MS }).catch(() => []));
   }
-  for (const probe of [...configuredOpenAiProbes(), ...OPENAI_COMPAT_PROBES]) {
+  for (const probe of configuredOpenAiProbes()) {
     if (configuredProviderIds.has(probe.providerId.toLowerCase())) continue;
-    probes.push(probeOpenAiProvider(probe).catch(() => []));
+    probes.push(probeOpenAiProvider(probe, { timeoutMs: DETECT_TIMEOUT_MS }).catch(() => []));
+  }
+  for (const probe of OPENAI_COMPAT_PROBES) {
+    if (configuredProviderIds.has(probe.providerId.toLowerCase())) continue;
+    probes.push(probeOpenAiProvider(probe, { timeoutMs: LIVE_DETECT_TIMEOUT_MS }).catch(() => []));
   }
 
-  const [detected, catalog] = await Promise.all([
+  const [detected, running, catalog] = await Promise.all([
     Promise.all(probes).then(results => results.flat()),
+    Promise.resolve([...detectRunningLlamaServerModels(), ...detectRunningLmStudioModels()]).catch(() => []),
     detectModelCatalog()
   ]);
-  return sortDetectedModels(dedupeModels([...configuredModels, ...detected, ...catalog]));
+  return sortDetectedModels(dedupeModels([...configuredModels, ...running, ...detected, ...catalog]));
+}
+
+async function probeConfiguredProvider(provider, options = {}) {
+  const detected = await probeOpenAiProvider(provider, options);
+  if (detected.length) return detected.map(model => ({ ...model, source: 'config' }));
+  return provider.models;
+}
+
+async function scanLiveLocalModels() {
+  const configured = configuredProviders(await readLocalModelsConfig());
+  const configuredProviderIds = new Set(configured.map(provider => provider.providerId.toLowerCase()));
+  const probes = configured.map(provider => probeConfiguredProvider(provider, { timeoutMs: DETECT_TIMEOUT_MS }).catch(() => []));
+
+  if (!configuredProviderIds.has('ollama')) {
+    probes.push(probeOllamaCached({ timeoutMs: LIVE_DETECT_TIMEOUT_MS }).catch(() => []));
+  }
+  for (const probe of configuredOpenAiProbes()) {
+    if (configuredProviderIds.has(probe.providerId.toLowerCase())) continue;
+    probes.push(probeOpenAiProvider(probe, { timeoutMs: DETECT_TIMEOUT_MS }).catch(() => []));
+  }
+  for (const probe of OPENAI_COMPAT_PROBES) {
+    if (configuredProviderIds.has(probe.providerId.toLowerCase())) continue;
+    probes.push(probeOpenAiProvider(probe, { timeoutMs: LIVE_DETECT_TIMEOUT_MS }).catch(() => []));
+  }
+
+  const [detected, running] = await Promise.all([
+    Promise.all(probes).then(results => results.flat()),
+    Promise.resolve([...detectRunningLlamaServerModels(), ...detectRunningLmStudioModels()]).catch(() => [])
+  ]);
+  return sortDetectedModels(dedupeModels([...running, ...detected]).filter(model => model.live));
 }
 
 export async function detectLocalModels(options = {}) {
+  const startedAt = nowMs();
   const key = localModelsCacheKey();
   const now = Date.now();
   if (options.cache !== false && localModelsCache?.key === key) {
@@ -373,6 +705,7 @@ export async function detectLocalModels(options = {}) {
   const promise = scanLocalModels()
     .then(models => {
       localModelsCache = { key, value: models, expiresAt: Date.now() + DETECT_CACHE_MS, promise: null };
+      debugTiming('localModels.full', startedAt, { count: models.length });
       return models;
     })
     .catch(error => {
@@ -382,6 +715,94 @@ export async function detectLocalModels(options = {}) {
 
   localModelsCache = { key, value: null, expiresAt: 0, promise };
   return promise;
+}
+
+export async function detectLiveLocalModels(options = {}) {
+  const startedAt = nowMs();
+  const key = localModelsCacheKey();
+  const now = Date.now();
+  if (options.cache !== false && liveModelsCache?.key === key) {
+    if (liveModelsCache.value && liveModelsCache.expiresAt > now) return liveModelsCache.value;
+    if (liveModelsCache.promise) return liveModelsCache.promise;
+  }
+
+  const promise = scanLiveLocalModels()
+    .then(models => {
+      liveModelsCache = { key, value: models, expiresAt: Date.now() + DETECT_CACHE_MS, promise: null };
+      debugTiming('localModels.live', startedAt, { count: models.length });
+      return models;
+    })
+    .catch(error => {
+      if (liveModelsCache?.promise === promise) liveModelsCache = null;
+      throw error;
+    });
+
+  liveModelsCache = { key, value: null, expiresAt: 0, promise };
+  return promise;
+}
+
+async function findFirstLiveLocalModel(options = {}) {
+  const startedAt = nowMs();
+  const key = localModelsCacheKey();
+  const now = Date.now();
+  if (options.cache !== false && firstLiveModelCache?.key === key) {
+    if (firstLiveModelCache.value && firstLiveModelCache.expiresAt > now) return firstLiveModelCache.value;
+    if (firstLiveModelCache.promise) return firstLiveModelCache.promise;
+  }
+
+  const promise = raceFirstLiveLocalModel()
+    .then(model => {
+      firstLiveModelCache = { key, value: model, expiresAt: Date.now() + DETECT_CACHE_MS, promise: null };
+      debugTiming('localModels.firstLive', startedAt, { provider: model?.providerName, model: model?.id });
+      return model;
+    })
+    .catch(error => {
+      if (firstLiveModelCache?.promise === promise) firstLiveModelCache = null;
+      throw error;
+    });
+  firstLiveModelCache = { key, value: null, expiresAt: 0, promise };
+  return promise;
+}
+
+async function raceFirstLiveLocalModel() {
+  const configured = configuredProviders(await readLocalModelsConfig());
+  const configuredChoice = await firstConfiguredLiveModel(configured);
+  if (configuredChoice) return configuredChoice;
+
+  const configuredProviderIds = new Set(configured.map(provider => provider.providerId.toLowerCase()));
+  const probes = [];
+  if (!configuredProviderIds.has('ollama')) {
+    probes.push(probeOllamaCached({ timeoutMs: LIVE_DETECT_TIMEOUT_MS }));
+  }
+  for (const probe of configuredOpenAiProbes()) {
+    if (configuredProviderIds.has(probe.providerId.toLowerCase())) continue;
+    probes.push(probeOpenAiProvider(probe, { timeoutMs: DETECT_TIMEOUT_MS }));
+  }
+  for (const probe of OPENAI_COMPAT_PROBES) {
+    if (configuredProviderIds.has(probe.providerId.toLowerCase())) continue;
+    probes.push(probeOpenAiProvider(probe, { timeoutMs: LIVE_DETECT_TIMEOUT_MS }));
+  }
+
+  if (!probes.length) return null;
+  try {
+    return await Promise.any(probes.map(probe => probe
+      .then(models => {
+        const choice = preferredModel(sortDetectedModels(models.filter(model => model.live)), '');
+        if (choice) return choice;
+        throw new Error('No live model from this provider.');
+      })));
+  } catch {
+    return null;
+  }
+}
+
+async function firstConfiguredLiveModel(configured) {
+  for (const provider of configured) {
+    const models = await probeConfiguredProvider(provider, { timeoutMs: DETECT_TIMEOUT_MS }).catch(() => []);
+    const choice = preferredModel(sortDetectedModels(models.filter(model => model.live)), '');
+    if (choice) return choice;
+  }
+  return null;
 }
 
 function modelMatches(model, requested) {
@@ -418,14 +839,18 @@ export async function resolveLocalModel(options = {}) {
     return null;
   }
 
-  const models = await detectLocalModels();
-  const candidates = options.requireLive || options.verify ? models.filter(model => model.live) : models;
+  if ((options.requireLive || options.verify) && !requestedModel && options.fast !== false) {
+    return findFirstLiveLocalModel(options);
+  }
+
+  const candidates = options.requireLive || options.verify ? await detectLiveLocalModels(options) : await detectLocalModels(options);
   return preferredModel(candidates, requestedModel);
 }
 
 export function detectInstalledLocalRuntimes() {
   return [
     ['ollama', 'Ollama'],
+    ['lms', 'LM Studio CLI'],
     ['llama-server', 'llama.cpp server'],
     ['llama-cli', 'llama.cpp CLI'],
     ['llamafile', 'llamafile']

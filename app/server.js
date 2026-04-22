@@ -4,6 +4,8 @@ import { sendJson, sendText, readJsonBody, serveStatic } from './lib/http.js';
 import { generatePage, handlePageStream } from './lib/generator.js';
 import { codexStatus } from './lib/codexLauncher.js';
 import { aiSdkStatus, warmLocalModel } from './lib/aiSdkProvider.js';
+import { deleteSavedPage, listSavedPages } from './lib/pageStore.js';
+import { warmModelsDevIndex } from './lib/modelProfiles.js';
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const AUTH_STATUS_CACHE_MS = 2_500;
@@ -78,7 +80,19 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (req.method === 'POST' && (url.pathname === '/api/page-stream' || url.pathname === '/api/page/stream')) {
+    if (req.method === 'GET' && url.pathname === '/api/pages') {
+      sendJson(res, 200, { pages: await listSavedPages(Number(url.searchParams.get('limit') || 80)) });
+      return;
+    }
+
+    if (req.method === 'DELETE' && url.pathname.startsWith('/api/pages/')) {
+      const fileName = decodeURIComponent(url.pathname.replace(/^\/api\/pages\//, ''));
+      const deleted = await deleteSavedPage(fileName);
+      sendJson(res, deleted ? 200 : 404, { deleted });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/page-stream') {
       await handlePageStream(req, res);
       return;
     }
@@ -97,7 +111,8 @@ const server = http.createServer(async (req, res) => {
 
     await serveStatic(req, res);
   } catch (error) {
-    if (!res.headersSent) sendJson(res, 500, { error: error.message || String(error) });
+    const status = Number(error.statusCode || error.status || 500);
+    if (!res.headersSent) sendJson(res, status >= 400 && status < 600 ? status : 500, { error: error.message || String(error) });
     else res.end();
   }
 });
@@ -112,5 +127,6 @@ server.listen(config.port, config.host, () => {
     console.log(`Host: ${config.host}${config.allowLan ? ' (LAN enabled)' : ' (local only)'}`);
     console.log('Press Ctrl+C to stop Slopweb.');
   }
-  if (shouldTryAiSdk()) warmLocalModel().catch(() => {});
+  if (shouldTryAiSdk() || config.aiProvider === 'codex') warmLocalModel().catch(() => {});
+  warmModelsDevIndex().catch(() => {});
 });

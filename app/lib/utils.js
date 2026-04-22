@@ -23,7 +23,7 @@ export function slugWords(value, fallback = 'home') {
   let decoded = String(value || '');
   try { decoded = decodeURIComponent(decoded); } catch {}
   const text = decoded
-    .replace(/^synthetic:\/\//, '')
+    .replace(/^slopweb:\/\//, '')
     .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
     .replace(/[?#].*$/, '')
     .replace(/[-_/]+/g, ' ')

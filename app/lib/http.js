@@ -1,6 +1,6 @@
 import { createReadStream, existsSync } from 'node:fs';
 import path from 'node:path';
-import { ASSETS_DIR, PUBLIC_DIR } from './config.js';
+import { ASSETS_DIR, GENERATED_PAGES_DIR, PUBLIC_DIR } from './config.js';
 
 const MIME_TYPES = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -38,11 +38,24 @@ export async function readJsonBody(req, limitBytes = 64_000) {
   const chunks = [];
   for await (const chunk of req) {
     total += chunk.length;
-    if (total > limitBytes) throw new Error('Request body too large.');
+    if (total > limitBytes) throw httpError(413, 'Request body too large.');
     chunks.push(chunk);
   }
   if (!chunks.length) return {};
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  let parsed;
+  try {
+    parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch {
+    throw httpError(400, 'Invalid JSON body.');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw httpError(400, 'JSON body must be an object.');
+  return parsed;
+}
+
+function httpError(statusCode, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
 }
 
 export function sendNdjson(res, payload) {
@@ -60,9 +73,12 @@ export async function serveStatic(req, res) {
   }
   if (pathname === '/') pathname = '/index.html';
 
+  const servingGeneratedPage = pathname.startsWith('/slopweb/pages/');
   const servingAsset = pathname.startsWith('/assets/');
-  const baseDir = servingAsset ? ASSETS_DIR : PUBLIC_DIR;
-  const localPath = servingAsset ? `.${pathname.replace(/^\/assets/, '')}` : `.${pathname}`;
+  const baseDir = servingGeneratedPage ? GENERATED_PAGES_DIR : servingAsset ? ASSETS_DIR : PUBLIC_DIR;
+  const localPath = servingGeneratedPage
+    ? `.${pathname.replace(/^\/slopweb\/pages/, '')}`
+    : servingAsset ? `.${pathname.replace(/^\/assets/, '')}` : `.${pathname}`;
   const requestedPath = path.resolve(baseDir, localPath);
   const relativePath = path.relative(baseDir, requestedPath);
   if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
@@ -70,7 +86,7 @@ export async function serveStatic(req, res) {
     return;
   }
 
-  if (servingAsset && !existsSync(requestedPath)) {
+  if ((servingAsset || servingGeneratedPage) && !existsSync(requestedPath)) {
     sendText(res, 404, 'Not found');
     return;
   }

@@ -27,3 +27,16 @@ export async function readNdjsonStream(response, onEvent) {
     reader.releaseLock();
   }
 }
+
+export async function listSavedPages() {
+  const res = await fetch('/api/pages');
+  if (!res.ok) throw new Error(`Saved pages failed: ${res.status}`);
+  const data = await res.json();
+  return { pages: Array.isArray(data?.pages) ? data.pages : [] };
+}
+
+export async function deleteSavedPage(fileName) {
+  const res = await fetch(`/api/pages/${encodeURIComponent(fileName)}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
+  return res.json();
+}

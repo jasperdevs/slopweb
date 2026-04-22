@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Slopweb</title>
+  <link rel="icon" href="/assets/logo.png" type="image/png" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
@@ -18,23 +19,33 @@
       </section>
 
       <form id="navForm" class="toolbar" autocomplete="off">
-        <button type="button" class="app-logo" data-jump="synthetic://home" aria-label="Slopweb home"><img src="/assets/logo.png" alt="" /></button>
+        <button type="button" class="app-logo" data-jump="slopweb://home" aria-label="Slopweb home"><img src="/assets/logo.png" alt="" /></button>
         <button type="button" id="backBtn" class="chrome-icon nav-icon" aria-label="Back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6 9 12l6 6"/></svg></button>
         <button type="button" id="forwardBtn" class="chrome-icon nav-icon" aria-label="Forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
-        <button type="button" id="reloadBtn" class="chrome-icon nav-icon" aria-label="Reload"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 5v6h-6"/></svg></button>
+        <button type="button" id="reloadBtn" class="chrome-icon nav-icon" aria-label="Reload"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4v4.5h-4.5"/></svg></button>
         <button type="button" id="homeBtn" class="chrome-icon nav-icon" aria-label="Home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 11 8-7 8 7"/><path d="M6.5 10.5V20h11v-9.5"/><path d="M10 20v-5h4v5"/></svg></button>
 
         <label class="omnibox" aria-label="Address and search bar">
-          <span class="omnibox-lock" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.07 0l2-2a5 5 0 0 0-7.07-7.07l-1.15 1.15"/><path d="M14 11a5 5 0 0 0-7.07 0l-2 2A5 5 0 0 0 12 20.07l1.15-1.15"/></svg></span>
-          <input id="addressInput" name="address" value="synthetic://home" aria-label="Address" spellcheck="false" autocomplete="off" />
+          <span class="omnibox-lock" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span>
+          <input id="addressInput" name="address" value="slopweb://home" aria-label="Address" spellcheck="false" autocomplete="off" />
           <button id="omniboxClear" class="clear-btn" type="button" aria-label="Clear address"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
           <button class="go-btn" type="submit" aria-label="Generate page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></button>
         </label>
 
+        <button type="button" id="stopBtn" class="chrome-icon nav-icon hidden" aria-label="Stop generation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg></button>
+        <button type="button" id="regenBtn" class="chrome-icon nav-icon" aria-label="Regenerate page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 4 1.6 3.9L17.5 9.5l-3.9 1.6L12 15l-1.6-3.9L6.5 9.5l3.9-1.6z"/><path d="M18 16.5 18.6 18l1.5.6-1.5.6L18 20.7l-.6-1.5L15.9 18.6l1.5-.6z"/></svg></button>
+        <details id="savedPagesMenu" class="saved-pages-menu">
+          <summary class="chrome-icon" aria-label="Saved pages"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v16l-6-3.4L6 20z"/></svg></summary>
+          <div class="saved-pages-panel">
+            <header><strong>Saved pages</strong><button type="button" id="refreshPagesBtn">Refresh</button></header>
+            <ol id="savedPagesList"></ol>
+          </div>
+        </details>
+
         <div class="status-pill" id="authStatus">checking</div>
 
         <details class="chrome-menu">
-          <summary class="chrome-icon" aria-label="Open menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5h.01M12 12h.01M12 17.5h.01"/></svg></summary>
+          <summary class="chrome-icon" aria-label="Open menu"><svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" stroke="none"><circle cx="12" cy="6" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="18" r="1.6"/></svg></summary>
           <div class="menu-panel">
             <section class="menu-section first">
               <button type="button" id="menuNewTab"><span>New tab</span><kbd>Ctrl+T</kbd></button>
@@ -42,9 +53,9 @@
             </section>
             <section class="menu-section">
               <h2>Generate</h2>
-              <button type="button" data-jump="synthetic://news/world-wire"><span>World Wire</span></button>
-              <button type="button" data-jump="synthetic://app/personal-dashboard"><span>Personal Dashboard</span></button>
-              <button type="button" data-jump="synthetic://game/neon-maze"><span>Neon Maze</span></button>
+              <button type="button" data-jump="slopweb://news/world-wire"><span>World Wire</span></button>
+              <button type="button" data-jump="slopweb://app/personal-dashboard"><span>Personal Dashboard</span></button>
+              <button type="button" data-jump="slopweb://game/neon-maze"><span>Neon Maze</span></button>
             </section>
             <section class="menu-section"><h2>History</h2><ol id="historyList"></ol></section>
             <section class="menu-section last"><button id="clearBtn" class="menu-danger" type="button"><span>Clear history</span></button></section>
@@ -53,20 +64,21 @@
       </form>
 
       <section class="bookmark-bar" aria-label="Bookmarks">
-        <button type="button" data-jump="synthetic://home"><span class="bm-icon home-bm"></span>Home</button>
-        <button type="button" data-jump="synthetic://search/chrome style"><span class="bm-icon search-bm"></span>Search</button>
-        <button type="button" data-jump="synthetic://news/world-wire"><span class="bm-icon news-bm"></span>News</button>
-        <button type="button" data-jump="synthetic://app/personal-dashboard"><span class="bm-icon dash-bm"></span>Dashboard</button>
-        <button type="button" data-jump="synthetic://game/neon-maze"><span class="bm-icon game-bm"></span>Game</button>
+        <button type="button" data-jump="slopweb://home"><span class="bm-icon home-bm"></span>Home</button>
+        <button type="button" data-jump="slopweb://search/chrome style"><span class="bm-icon search-bm"></span>Search</button>
+        <button type="button" data-jump="slopweb://news/world-wire"><span class="bm-icon news-bm"></span>News</button>
+        <button type="button" data-jump="slopweb://app/personal-dashboard"><span class="bm-icon dash-bm"></span>Dashboard</button>
+        <button type="button" data-jump="slopweb://game/neon-maze"><span class="bm-icon game-bm"></span>Game</button>
         <span class="bookmark-spacer"></span>
       </section>
     </header>
 
     <section class="viewport-shell" aria-label="Generated page and live source">
       <section class="page-pane">
-        <iframe id="pageFrame" title="Generated page" sandbox="allow-forms allow-modals allow-scripts" referrerpolicy="no-referrer"></iframe>
+        <iframe id="pageFrame" title="Generated page" sandbox="allow-forms allow-scripts" referrerpolicy="no-referrer"></iframe>
       </section>
       <aside id="sourceRail" class="source-rail" aria-label="Live HTML source">
+        <div class="source-resizer" aria-hidden="true"></div>
         <header>
           <div><strong>Source</strong><span id="sourceStatus">idle</span></div>
           <button id="sourceCollapse" class="rail-close" type="button" aria-label="Collapse source rail"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg><span>Source</span></button>
@@ -78,7 +90,7 @@
 
   <dialog id="authDialog">
     <form method="dialog" class="dialog-card">
-      <header><div><p class="dialog-eyebrow">Local OAuth</p><h2>Connect Codex</h2></div><button class="chrome-icon dialog-close" value="close" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.4 5.7 5.6 5.6 5.6-5.6.7.7-5.6 5.6 5.6 5.6-.7.7-5.6-5.6-5.6 5.6-.7-.7 5.6-5.6-5.6-5.6z"/></svg></button></header>
+      <header><div><p class="dialog-eyebrow">Local OAuth</p><h2>Connect Codex</h2></div><button class="chrome-icon dialog-close" value="close" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></header>
       <p>This app uses your local Codex CLI. Your OAuth token stays in your Codex credential store, not inside this HTML shell.</p>
       <div class="command-box"><code>slopweb login</code><code>codex login</code><code>slopweb status</code></div>
       <pre id="authLog" class="auth-log">No login started yet.</pre>

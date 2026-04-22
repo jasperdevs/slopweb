@@ -23,6 +23,16 @@ const BANNER_LINES = [
   ' ╚══════╝ ╚══════╝  ╚═════╝  ╚═╝       ╚══╝╚══╝  ╚══════╝ ╚═════╝'
 ];
 const LOGO_COLORS = ['97;33;210', '19;31;159', '35;143;255', '35;139;255', '97;33;210', '19;31;159'];
+const PALETTE = {
+  accent: '138;155;255',
+  accentSoft: '196;205;255',
+  muted: '138;144;159',
+  dim: '96;102;119',
+  green: '34;197;94',
+  red: '239;68;68',
+  yellow: '250;176;5'
+};
+const BANNER_SUBTITLE = 'A new web where AI generates every page.';
 let interactiveScreenActive = false;
 let lastInteractiveFrame = [];
 
@@ -42,10 +52,17 @@ function color(text, rgb) {
   return supportsColor() ? `\x1b[38;2;${rgb}m${text}\x1b[0m` : text;
 }
 
+function dim(text)     { return color(text, PALETTE.dim); }
+function muted(text)   { return color(text, PALETTE.muted); }
+function accent(text)  { return color(text, PALETTE.accent); }
+function headline(text){ return supportsColor() ? `\x1b[1m${text}\x1b[0m` : text; }
+
 function renderBanner() {
-  return BANNER_LINES
+  const art = BANNER_LINES
     .map((line, index) => color(line, LOGO_COLORS[index % LOGO_COLORS.length]))
     .join('\n');
+  const pad = ' '.repeat(4);
+  return `${art}\n${pad}${dim(BANNER_SUBTITLE)}`;
 }
 
 function flagIndex(names) {
@@ -73,30 +90,33 @@ function rejectUnusedArgs(context) {
 }
 
 function printHelp() {
-  console.log(`${renderBanner()}
-
-Usage:
-  slopweb [start] [--port 8787] [--host localhost] [--model llama3.2] [--strict-port] [--open]
-  slopweb open [-p 8787]
-  slopweb models
-  slopweb health [-p 8787]
-  slopweb login
-  slopweb status
-  slopweb logout
-  slopweb doctor
-
-Examples:
-  slopweb
-  slopweb models
-  slopweb --base-url http://localhost:11434/v1 --model llama3.2
-  slopweb --local --model qwen2.5-coder:7b
-  slopweb --codex
-  slopweb login
-  slopweb status
-
-Generation uses local OpenAI-compatible servers through Vercel AI SDK, or Codex through OAuth.
-The server is local-only by default and opens at http://localhost:8787.
-Press Ctrl+C to stop the running server.`);
+  const rows = [
+    renderBanner(),
+    '',
+    dim('  USAGE'),
+    `    ${accent('slopweb')} [start] [--port 8787] [--host localhost] [--model llama3.2] [--strict-port] [--open]`,
+    `    ${accent('slopweb open')} [-p 8787]`,
+    `    ${accent('slopweb models')}`,
+    `    ${accent('slopweb health')} [-p 8787]`,
+    `    ${accent('slopweb login')}`,
+    `    ${accent('slopweb status')}`,
+    `    ${accent('slopweb logout')}`,
+    `    ${accent('slopweb doctor')}`,
+    '',
+    dim('  EXAMPLES'),
+    `    ${dim('$')} slopweb`,
+    `    ${dim('$')} slopweb models`,
+    `    ${dim('$')} slopweb --base-url http://localhost:11434/v1 --model llama3.2`,
+    `    ${dim('$')} slopweb --local --model qwen2.5-coder:7b`,
+    `    ${dim('$')} slopweb --codex`,
+    `    ${dim('$')} slopweb login`,
+    `    ${dim('$')} slopweb status`,
+    '',
+    `  ${muted('Generation runs through a local OpenAI-compatible server (AI SDK) or Codex via OAuth.')}`,
+    `  ${muted('The server is local-only by default and opens at')} ${accent('http://localhost:8787')}${muted('.')}`,
+    `  ${dim('Press Ctrl+C to stop the running server.')}`
+  ];
+  console.log(rows.join('\n'));
 }
 
 if (args.includes('--help') || args.includes('-h')) {
@@ -194,6 +214,7 @@ async function startServer(defaults = {}) {
   process.env.SLOPWEB_VERSION = VERSION;
   if (process.stdout.isTTY) process.env.SLOPWEB_SUPPRESS_SERVER_LOGS = '1';
   if (shouldWarmLocalProvider()) warmLocalProvider().catch(() => {});
+  if (shouldWarmCodexProvider()) warmCodexProvider().catch(() => {});
   process.chdir(resolve(rootDir, 'app'));
   await import('../app/server.js');
   renderRunningScreen({ host, port });
@@ -239,9 +260,19 @@ function shouldWarmLocalProvider() {
   return ['local', 'ai-sdk'].includes(providerName) || Boolean(process.env.SLOPWEB_BASE_URL || process.env.AI_SDK_BASE_URL);
 }
 
+function shouldWarmCodexProvider() {
+  const providerName = String(process.env.SLOPWEB_PROVIDER || process.env.AI_PROVIDER || 'auto').toLowerCase();
+  return providerName === 'codex' || (!shouldWarmLocalProvider() && providerName === 'auto');
+}
+
 async function warmLocalProvider() {
   const { warmLocalModel } = await import('../app/lib/aiSdkProvider.js');
   return warmLocalModel();
+}
+
+async function warmCodexProvider() {
+  const { warmCodexCli } = await import('../app/lib/codexLauncher.js');
+  return warmCodexCli();
 }
 
 function renderRunningScreen({ host, port }) {
@@ -249,18 +280,24 @@ function renderRunningScreen({ host, port }) {
   if (!process.stdout.isTTY) return;
   enterInteractiveScreen();
   const provider = process.env.SLOPWEB_PROVIDER || process.env.AI_PROVIDER || (process.env.SLOPWEB_BASE_URL || process.env.AI_SDK_BASE_URL ? 'local' : 'auto');
+  const rows = [
+    ['url', accent(url)],
+    ['provider', provider],
+    process.env.SLOPWEB_MODEL ? ['model', process.env.SLOPWEB_MODEL] : null,
+    process.env.SLOPWEB_BASE_URL ? ['base url', process.env.SLOPWEB_BASE_URL] : null
+  ].filter(Boolean).map(([key, value]) => `    ${dim(key.padEnd(10, ' '))}${value}`);
+
+  const dot = supportsColor() ? color('●', PALETTE.green) : '●';
+  const versionBadge = VERSION ? `  ${dim(`v${VERSION}`)}` : '';
   const lines = [
     renderBanner(),
     '',
-    'Slopweb is running',
+    `  ${dot} ${headline('Slopweb is running')}${versionBadge}`,
     '',
-    `  URL      ${url}`,
-    `  Provider ${provider}`,
-    process.env.SLOPWEB_MODEL ? `  Model    ${process.env.SLOPWEB_MODEL}` : '',
-    process.env.SLOPWEB_BASE_URL ? `  Base URL ${process.env.SLOPWEB_BASE_URL}` : '',
+    ...rows,
     '',
-    'Press Ctrl+C to stop Slopweb.'
-  ].filter(line => line !== '');
+    dim('  Press Ctrl+C to stop Slopweb.')
+  ];
   writeInteractiveFrame(lines.join('\n'));
   const stop = () => {
     exitInteractiveScreen();
@@ -272,7 +309,7 @@ function renderRunningScreen({ host, port }) {
 
 function modelChoiceLabel(model) {
   const state = model.live ? 'running' : 'installed';
-  return `${statusMarker(model.live)} ${model.providerName} · ${model.id} (${state})`;
+  return `${modelMarker(model)} ${model.providerName} · ${model.id} (${state})`;
 }
 
 function statusMarker(live) {
@@ -280,13 +317,59 @@ function statusMarker(live) {
   return live ? color('●', '34;197;94') : color('●', '239;68;68');
 }
 
+function modelMarker(model) {
+  if (model?.live) return statusMarker(true);
+  if (!supportsColor()) return '🟡';
+  return color('●', PALETTE.yellow);
+}
+
+function quoteArg(value) {
+  const text = String(value || '');
+  return /[\s"]/g.test(text) ? `"${text.replaceAll('"', '\\"')}"` : text;
+}
+
+function modelStartHint(model) {
+  if (!model?.runtime) return '';
+  if (model.providerId === 'llamacpp' && model.filePath) {
+    return `${quoteArg(model.runtime)} --model ${quoteArg(model.filePath)} --host 127.0.0.1 --port 8080`;
+  }
+  if (model.providerId === 'lmstudio') {
+    return `${quoteArg(model.runtime)} load ${quoteArg(model.id)} && ${quoteArg(model.runtime)} server start`;
+  }
+  if (model.providerId === 'ollama') return `${quoteArg(model.runtime)} serve`;
+  return '';
+}
+
 function codexChoiceLabel(status) {
+  if (!status) return `${statusMarker(false)} Codex OAuth (not checked)`;
   return `${statusMarker(Boolean(status?.connected))} Codex OAuth (${status?.connected ? 'connected' : 'not connected'})`;
 }
 
-async function waitForJson(url, timeoutMs) {
+function spawnDetachedRuntime(command, args) {
+  const state = { error: '', exit: null };
+  let child;
+  try {
+    child = spawn(command, args, { stdio: 'ignore', detached: true });
+  } catch (error) {
+    state.error = error.message || String(error);
+    return { state, unref() {} };
+  }
+  child.on('error', error => { state.error = error.message || String(error); });
+  child.on('exit', (code, signal) => { state.exit = { code, signal }; });
+  return {
+    state,
+    unref() { child.unref(); }
+  };
+}
+
+async function waitForRuntimeJson(url, timeoutMs, runtime) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
+    if (runtime.state.error) throw new Error(runtime.state.error);
+    if (runtime.state.exit) {
+      const { code, signal } = runtime.state.exit;
+      throw new Error(`Runtime exited before it became ready${signal ? ` (${signal})` : code === null ? '' : ` (code ${code})`}.`);
+    }
     try {
       const response = await fetch(url);
       if (response.ok) return true;
@@ -305,12 +388,12 @@ async function startDetectedRuntime(model) {
   if (!model.runtime) throw new Error(`${model.providerName} is installed, but Slopweb could not find a runtime command to start it.`);
 
   if (model.providerId === 'ollama') {
-    const child = spawn(model.runtime, ['serve'], { stdio: 'ignore', detached: true });
-    child.unref();
+    const runtime = spawnDetachedRuntime(model.runtime, ['serve']);
     const origin = originFromBaseUrl(model.baseUrl);
-    if (!(await waitForJson(`${origin}/api/tags`, 15_000))) {
+    if (!(await waitForRuntimeJson(`${origin}/api/tags`, 15_000, runtime))) {
       throw new Error('Ollama did not become ready. Start Ollama, then run `slopweb models` again.');
     }
+    runtime.unref();
     return { ...model, live: true };
   }
 
@@ -318,22 +401,15 @@ async function startDetectedRuntime(model) {
     const port = await choosePort(8080, '127.0.0.1');
     const baseUrl = `http://127.0.0.1:${port}/v1`;
     const args = ['--model', model.filePath, '--host', '127.0.0.1', '--port', String(port)];
-    const child = spawn(model.runtime, args, { stdio: 'ignore', detached: true });
-    child.unref();
-    if (!(await waitForJson(`${baseUrl}/models`, 60_000))) {
+    const runtime = spawnDetachedRuntime(model.runtime, args);
+    if (!(await waitForRuntimeJson(`${baseUrl}/models`, 60_000, runtime))) {
       throw new Error(`llama.cpp did not become ready for ${model.filePath}.`);
     }
+    runtime.unref();
     return { ...model, baseUrl, live: true };
   }
 
   throw new Error(`${model.providerName} model is installed, but Slopweb does not know how to start this runtime yet.`);
-}
-
-function clearInteractiveScreen() {
-  if (process.stdout.isTTY) {
-    lastInteractiveFrame = [];
-    process.stdout.write('\x1b[2J\x1b[H');
-  }
 }
 
 function writeInteractiveFrame(text, cursorPosition = null) {
@@ -373,11 +449,13 @@ function exitInteractiveScreen() {
 
 function renderInputBox(value = '') {
   const width = Math.min(78, Math.max(42, Number(process.stdout.columns || 80) - 6));
-  const top = `╭${'─'.repeat(width)}╮`;
-  const bottom = `╰${'─'.repeat(width)}╯`;
+  const top = dim(`╭${'─'.repeat(width)}╮`);
+  const bottom = dim(`╰${'─'.repeat(width)}╯`);
+  const side = dim('│');
+  const prompt = accent('>');
   const visible = [...String(value || '')].slice(-Math.max(0, width - 5)).join('');
-  const content = `> ${visible}`.padEnd(Math.max(0, width - 2), ' ');
-  return `${top}\n│ ${content} │\n${bottom}`;
+  const content = ` ${visible}`.padEnd(Math.max(0, width - 3), ' ');
+  return `${top}\n${side} ${prompt}${content} ${side}\n${bottom}`;
 }
 
 function inputBoxWidth() {
@@ -410,11 +488,56 @@ function choiceSearchText(choice) {
   ].filter(Boolean).join(' ').toLowerCase();
 }
 
+function choiceSemanticTerms(choice) {
+  const terms = choiceSearchText(choice).split(/[^a-z0-9.:-]+/i).filter(Boolean);
+  if (choice.kind === 'local') {
+    terms.push('local', 'offline', 'private', 'model', 'runtime', 'openai-compatible');
+    if (choice.model?.live) terms.push('running', 'ready', 'green', 'live');
+    else terms.push('installed', 'stopped', 'red', 'not-running');
+  }
+  if (choice.kind === 'codex') terms.push('codex', 'oauth', 'login', 'cloud', 'openai', 'account');
+  if (choice.kind === 'manual') terms.push('manual', 'custom', 'endpoint', 'base-url', 'url', 'server', 'api', 'local', 'lm-studio', 'ollama');
+  return [...new Set(terms)];
+}
+
+function isSubsequence(needle, haystack) {
+  let index = 0;
+  for (const char of haystack) {
+    if (char === needle[index]) index += 1;
+    if (index === needle.length) return true;
+  }
+  return false;
+}
+
+function semanticTermScore(term, choicesTerms) {
+  if (!term) return 0;
+  let score = 0;
+  for (const candidate of choicesTerms) {
+    if (candidate === term) score = Math.max(score, 100);
+    else if (candidate.startsWith(term)) score = Math.max(score, 76);
+    else if (candidate.includes(term)) score = Math.max(score, 52);
+    else if (term.length >= 3 && isSubsequence(term, candidate)) score = Math.max(score, 28);
+  }
+  return score;
+}
+
+function semanticScore(choice, query) {
+  const terms = normalizedSearchText(query).split(/\s+/).filter(Boolean);
+  if (!terms.length) return 1;
+  const choiceTerms = choiceSemanticTerms(choice);
+  const scores = terms.map(term => semanticTermScore(term, choiceTerms));
+  if (scores.some(score => score <= 0)) return 0;
+  return scores.reduce((total, score) => total + score, 0);
+}
+
 function filteredChoices(choices, query) {
   const text = normalizedSearchText(query);
   if (!text) return choices;
-  const terms = text.split(/\s+/).filter(Boolean);
-  return choices.filter(choice => terms.every(term => choiceSearchText(choice).includes(term)));
+  return choices
+    .map((choice, order) => ({ choice, order, score: semanticScore(choice, text) }))
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score || a.order - b.order)
+    .map(item => item.choice);
 }
 
 function sortedModels(models) {
@@ -424,29 +547,96 @@ function sortedModels(models) {
   });
 }
 
+function kindLabel(kind) {
+  if (kind === 'local') return 'LOCAL MODELS';
+  if (kind === 'codex') return 'CLOUD';
+  if (kind === 'manual') return 'CUSTOM';
+  return String(kind || '').toUpperCase();
+}
+
+function pickerHint() {
+  const keyHint = (key, action) => `${accent(key)} ${dim(action)}`;
+  const pairs = [
+    keyHint('Type', 'filter'),
+    keyHint('↑↓', 'move'),
+    keyHint('Enter', 'choose'),
+    keyHint('Esc', 'clear'),
+    keyHint('Ctrl+C', 'quit')
+  ];
+  return pairs.join(dim('  ·  '));
+}
+
 function renderLaunchPicker({ choices, index, models, installed, commandBuffer, message }) {
   const visibleChoices = filteredChoices(choices, commandBuffer);
   const safeIndex = visibleChoices.length ? Math.min(index, visibleChoices.length - 1) : 0;
   const lines = [`${renderBanner()}`];
   if (!models.length) {
-    lines.push('No local models detected.');
-    if (installed.length) lines.push(`Installed runtimes: ${installed.map(item => item.name).join(', ')}`);
+    lines.push('', `  ${muted('No local models detected.')}`);
+    if (installed.length) lines.push(`  ${muted(`Installed runtimes: ${installed.map(item => item.name).join(', ')}`)}`);
   }
   const inputLineIndex = lines.length + 1;
   lines.push('', renderInputBox(commandBuffer || ''));
-  if (message) lines.push('', message);
-  if (commandBuffer && !visibleChoices.length) lines.push('', `No matches for "${commandBuffer}".`);
+  if (message) lines.push('', `  ${muted(message)}`);
+  if (commandBuffer && !visibleChoices.length) lines.push('', `  ${muted(`No matches for "${commandBuffer}".`)}`);
   lines.push('');
+  const showHeaders = !commandBuffer;
+  let lastKind = null;
   visibleChoices.forEach((choice, choiceIndex) => {
-    const pointer = choiceIndex === safeIndex ? color('›', '35;143;255') : ' ';
-    lines.push(`${pointer} ${choice.label}`);
+    if (showHeaders && choice.kind !== lastKind) {
+      if (lastKind !== null) lines.push('');
+      lines.push(`  ${dim(kindLabel(choice.kind))}`);
+      lastKind = choice.kind;
+    }
+    const pointer = choiceIndex === safeIndex ? accent('›') : ' ';
+    lines.push(`  ${pointer} ${choice.label}`);
   });
-  lines.push('', 'Type to filter  ↑/↓ select  Enter choose  Esc clear  Ctrl+C quit');
+  lines.push('', `  ${pickerHint()}`);
   writeInteractiveFrame(lines.join('\n'), { row: rowForFrameLine(lines, inputLineIndex) + 1, column: inputCursorColumn(commandBuffer) });
 }
 
+function makeLaunchChoices(models, codex = null, options = {}) {
+  const choices = models.slice(0, 9).map(model => ({
+    kind: 'local',
+    label: modelChoiceLabel(model),
+    model,
+    key: choiceKey({ kind: 'local', model })
+  }));
+  choices.push({ kind: 'codex', label: codexChoiceLabel(codex), key: 'codex' });
+  choices.push({ kind: 'manual', label: 'Manual local endpoint', key: 'manual' });
+  return choices;
+}
+
+function choiceKey(choice) {
+  if (!choice) return '';
+  if (choice.key) return choice.key;
+  if (choice.kind === 'local') return `local|${choice.model?.baseUrl || ''}|${choice.model?.id || ''}`.toLowerCase();
+  return String(choice.kind || '');
+}
+
+function mergeModels(primary, secondary) {
+  const seen = new Set();
+  const merged = [];
+  for (const model of [...primary, ...secondary]) {
+    if (!model) continue;
+    const key = `${model.baseUrl}|${model.id}`.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(model);
+  }
+  return merged;
+}
+
 function renderLaunchLoading(message = 'Scanning local models') {
-  const lines = [renderBanner(), '', renderInputBox(''), '', message, '', 'Ctrl+C quit'];
+  const dot = supportsColor() ? color('◌', PALETTE.accent) : '◌';
+  const lines = [
+    renderBanner(),
+    '',
+    renderInputBox(''),
+    '',
+    `  ${dot} ${muted(message)}`,
+    '',
+    `  ${accent('Ctrl+C')} ${dim('quit')}`
+  ];
   writeInteractiveFrame(lines.join('\n'), { row: rowForFrameLine(lines, 2) + 1, column: inputCursorColumn('') });
 }
 
@@ -457,8 +647,10 @@ function selectLaunchChoice(state) {
     let index = 0;
     let commandBuffer = '';
     let message = state.message || '';
+    let closed = false;
 
     const done = result => {
+      closed = true;
       stdin.off('data', onData);
       if (stdin.isTTY) stdin.setRawMode(Boolean(wasRaw));
       resolve(result);
@@ -469,6 +661,25 @@ function selectLaunchChoice(state) {
       if (visibleChoices.length && index >= visibleChoices.length) index = visibleChoices.length - 1;
       renderLaunchPicker({ ...state, index, commandBuffer, message });
     };
+
+    state.refreshPromise?.then(update => {
+      if (closed || !update) return;
+      const currentChoices = filteredChoices(state.choices, commandBuffer);
+      const selectedKey = choiceKey(currentChoices[Math.min(index, Math.max(0, currentChoices.length - 1))]);
+      if (Array.isArray(update.models)) state.models = update.models;
+      if (Array.isArray(update.installed)) state.installed = update.installed;
+      if (Array.isArray(update.choices)) state.choices = update.choices;
+      if (typeof update.message === 'string') {
+        state.message = update.message;
+        message = update.message;
+      }
+      const visibleChoices = filteredChoices(state.choices, commandBuffer);
+      const sameIndex = visibleChoices.findIndex(choice => choiceKey(choice) === selectedKey);
+      if (!commandBuffer && Array.isArray(update.models) && update.models.length) index = 0;
+      else if (sameIndex >= 0) index = sameIndex;
+      else if (visibleChoices.length) index = Math.min(index, visibleChoices.length - 1);
+      render();
+    }).catch(() => {});
 
     const onData = chunk => {
       const key = String(chunk);
@@ -550,11 +761,14 @@ function readInputBox({ title, label, value = '', hint = '', message = '' }) {
     };
 
     const render = () => {
-      const lines = [`${renderBanner()}`, '', title];
-      if (message) lines.push('', message);
+      const lines = [`${renderBanner()}`, '', `  ${headline(title)}`];
+      if (label) lines.push(`  ${dim(label)}`);
+      if (message) lines.push('', `  ${muted(message)}`);
       const inputLineIndex = lines.length + 1;
       lines.push('', renderInputBox(text));
-      lines.push(color('hint:', '127;127;127') + ` ${label}${hint ? `, e.g. ${hint}` : ''}`, '', 'Enter accept  Esc cancel  Ctrl+C quit');
+      const sep = dim('  ·  ');
+      const hint = `${accent('Enter')} ${dim('accept')}${sep}${accent('Esc')} ${dim('cancel')}${sep}${accent('Ctrl+C')} ${dim('quit')}`;
+      lines.push('', `  ${hint}`);
       writeInteractiveFrame(lines.join('\n'), { row: rowForFrameLine(lines, inputLineIndex) + 1, column: inputCursorColumn(text) });
     };
 
@@ -592,22 +806,6 @@ function readInputBox({ title, label, value = '', hint = '', message = '' }) {
   });
 }
 
-async function promptText(question) {
-  const { createInterface } = await import('node:readline/promises');
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    process.stdout.write('\x1b[?25h');
-    return (await rl.question(question)).trim();
-  } finally {
-    rl.close();
-    process.stdout.write('\x1b[?25l');
-  }
-}
-
-async function pauseForEnter() {
-  await promptText('\nPress Enter to return to the launcher.');
-}
-
 async function promptManualEndpoint() {
   const baseUrlInput = await readInputBox({
     title: 'Manual local endpoint',
@@ -619,7 +817,6 @@ async function promptManualEndpoint() {
   const model = await readInputBox({
     title: 'Manual local endpoint',
     label: 'model id',
-    hint: 'llama3.2',
     message: 'Enter the model id exposed by that server.'
   });
   if (model.cancelled || !model.value) return null;
@@ -630,35 +827,55 @@ async function promptManualEndpoint() {
 }
 
 async function runLaunchPicker(options = {}) {
-  const { detectLocalModels, detectInstalledLocalRuntimes, LOCAL_MODELS_CONFIG } = await import('../app/lib/localModels.js');
   let message = '';
 
   enterInteractiveScreen();
   try {
+    renderLaunchLoading('Loading local model detector');
+    const { detectLocalModels, detectInstalledLocalRuntimes, resolveLocalModel, LOCAL_MODELS_CONFIG } = await import('../app/lib/localModels.js');
+    const { codexStatus } = await import('../app/lib/codexLauncher.js');
     while (true) {
       renderLaunchLoading(message || 'Scanning local models');
-      const models = sortedModels(await detectLocalModels());
+      const fullModelsPromise = detectLocalModels().catch(() => []);
+      const codexStatusPromise = codexStatus().catch(() => ({ connected: false }));
+      const preferredLive = await resolveLocalModel({ verify: true }).catch(() => null);
+      const models = sortedModels([preferredLive].filter(Boolean));
       const installed = detectInstalledLocalRuntimes();
-      const codex = await import('../app/lib/codexLauncher.js').then(mod => mod.codexStatus()).catch(() => ({ connected: false }));
-      const choices = models.slice(0, 9).map(model => ({
-        kind: 'local',
-        label: modelChoiceLabel(model),
-        model
-      }));
-      choices.push({ kind: 'codex', label: codexChoiceLabel(codex) });
-      choices.push({ kind: 'manual', label: 'Manual local endpoint' });
+      const codex = await codexStatusPromise;
+      const choices = makeLaunchChoices(models, codex);
+      const refreshPromise = fullModelsPromise.then(fullModels => {
+        const merged = sortedModels(mergeModels(models, fullModels));
+        return {
+          models: merged,
+          installed: detectInstalledLocalRuntimes(),
+          choices: makeLaunchChoices(merged, codex),
+          message: merged.length ? '' : `Custom local providers can live at ${LOCAL_MODELS_CONFIG}`
+        };
+      });
 
       if (!models.length && !message) message = `Custom local providers can live at ${LOCAL_MODELS_CONFIG}`;
-      const result = await selectLaunchChoice({ choices, models, installed, message });
+      const result = await selectLaunchChoice({ choices, models, installed, message, refreshPromise });
       message = '';
 
       let choice = result.choice;
       if (choice.kind === 'local') {
-        const model = options.autostart === false ? choice.model : await startDetectedRuntime(choice.model);
-        process.env.SLOPWEB_PROVIDER = 'local';
-        process.env.SLOPWEB_BASE_URL = model.baseUrl;
-        process.env.SLOPWEB_MODEL = model.id;
-        return;
+        try {
+          if (!choice.model.live) {
+            const hint = modelStartHint(choice.model);
+            message = hint
+              ? `${choice.model.providerName} · ${choice.model.id} is installed, not running. Start it in another terminal: ${hint}`
+              : `${choice.model.providerName} · ${choice.model.id} is installed but not running. Start that runtime first, or choose a green running model.`;
+            continue;
+          }
+          const model = options.autostart === false ? choice.model : await startDetectedRuntime(choice.model);
+          process.env.SLOPWEB_PROVIDER = 'local';
+          process.env.SLOPWEB_BASE_URL = model.baseUrl;
+          process.env.SLOPWEB_MODEL = model.id;
+          return;
+        } catch (error) {
+          message = error.message || String(error);
+          continue;
+        }
       }
       if (choice.kind === 'codex') {
         process.env.SLOPWEB_PROVIDER = 'codex';
@@ -687,7 +904,7 @@ async function listLocalModels() {
     for (const model of models) {
       const state = model.live ? 'running' : 'installed';
       const location = model.filePath || model.baseUrl;
-      console.log(`  ${statusMarker(model.live)} ${model.providerName}\t${model.id}\t${state}\t${location}`);
+      console.log(`  ${modelMarker(model)} ${model.providerName}\t${model.id}\t${state}\t${location}`);
     }
     return;
   }
@@ -698,7 +915,7 @@ async function listLocalModels() {
     console.log('Installed runtimes:');
     installed.forEach(item => console.log(`  ${item.name}: ${item.path}`));
   }
-  console.log('Supported local endpoints: Ollama, LM Studio, llama.cpp/llamafile, vLLM, SGLang, Jan, text-generation-webui, KoboldCpp.');
+  console.log('Supported local endpoints: Ollama, LM Studio, llama.cpp/llamafile, vLLM, SGLang, Jan, text-generation-webui, KoboldCpp, LocalAI, LiteLLM.');
   console.log(`Custom providers: ${LOCAL_MODELS_CONFIG}`);
 }
 

@@ -1,4 +1,5 @@
-import { activeTab, state, saveSourceOpen } from './state.js';
+import { activeTab, state, saveSourceOpen, saveSourceWidth } from './state.js';
+import { escapeHtml } from './utils.js';
 
 export const els = {
   authStatus: document.querySelector('#authStatus'),
@@ -6,6 +7,11 @@ export const els = {
   addressInput: document.querySelector('#addressInput'),
   omnibox: document.querySelector('.omnibox'),
   omniboxClear: document.querySelector('#omniboxClear'),
+  stopBtn: document.querySelector('#stopBtn'),
+  regenBtn: document.querySelector('#regenBtn'),
+  savedPagesMenu: document.querySelector('#savedPagesMenu'),
+  savedPagesList: document.querySelector('#savedPagesList'),
+  refreshPagesBtn: document.querySelector('#refreshPagesBtn'),
   backBtn: document.querySelector('#backBtn'),
   forwardBtn: document.querySelector('#forwardBtn'),
   reloadBtn: document.querySelector('#reloadBtn'),
@@ -44,6 +50,7 @@ export function focusAddress() {
 
 export function setLiveMode(active, text = 'assembling elements') {
   if (els.sourceStatus) els.sourceStatus.textContent = active ? text : 'idle';
+  if (els.sourceRail) els.sourceRail.dataset.streaming = active ? '1' : '0';
 }
 
 export function setSourceOpen(open) {
@@ -54,8 +61,37 @@ export function setSourceOpen(open) {
   saveSourceOpen();
 }
 
-export function toggleSource() {
-  setSourceOpen(!state.sourceOpen);
+export function initSourceResizer() {
+  const resizer = document.querySelector('.source-resizer');
+  const shell = els.viewportShell;
+  if (!resizer || !shell) return;
+  const clamp = value => Math.min(720, Math.max(220, value));
+  shell.style.setProperty('--source-w', `${clamp(state.sourceWidth)}px`);
+  let dragging = false;
+  resizer.addEventListener('pointerdown', event => {
+    if (!state.sourceOpen) return;
+    dragging = true;
+    resizer.setPointerCapture(event.pointerId);
+    resizer.classList.add('active');
+    shell.classList.add('source-resizing');
+  });
+  resizer.addEventListener('pointermove', event => {
+    if (!dragging) return;
+    const rect = shell.getBoundingClientRect();
+    const next = clamp(rect.right - event.clientX);
+    state.sourceWidth = next;
+    shell.style.setProperty('--source-w', `${next}px`);
+  });
+  const end = event => {
+    if (!dragging) return;
+    dragging = false;
+    try { resizer.releasePointerCapture(event.pointerId); } catch {}
+    resizer.classList.remove('active');
+    shell.classList.remove('source-resizing');
+    saveSourceWidth();
+  };
+  resizer.addEventListener('pointerup', end);
+  resizer.addEventListener('pointercancel', end);
 }
 
 export function renderHistory(navigate) {
@@ -118,38 +154,57 @@ export function renderTabs({ activate, close }) {
   }));
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
-}
-
 function highlightTagToken(token) {
-  const escaped = escapeHtml(token);
-  if (/^<!--/i.test(token)) return `<span class="code-comment">${escaped}</span>`;
-  if (/^<!doctype/i.test(token)) return `<span class="code-doctype">${escaped}</span>`;
-  return escaped
-    .replace(/^(&lt;\/?)([a-z][\w-]*)/i, '<span class="code-bracket">$1</span><span class="code-tag">$2</span>')
-    .replace(/([\w:-]+)(=)(&quot;.*?&quot;|&#039;.*?&#039;|[^\s&>]+)/g, '<span class="code-attr">$1</span><span class="code-bracket">$2</span><span class="code-value">$3</span>')
-    .replace(/(\/?&gt;)$/, '<span class="code-bracket">$1</span>');
+  if (/^<!--/i.test(token)) return `<span class="code-comment">${escapeHtml(token)}</span>`;
+  if (/^<!doctype/i.test(token)) return `<span class="code-doctype">${escapeHtml(token)}</span>`;
+
+  const tag = token.match(/^<\/?([a-z][\w-]*)/i);
+  if (!tag) return escapeHtml(token);
+
+  const opener = token.startsWith('</') ? '</' : '<';
+  const end = token.match(/\/?>$/)?.[0] || '';
+  const body = token.slice(opener.length + tag[1].length, end ? -end.length : undefined);
+  let html = `<span class="code-bracket">${escapeHtml(opener)}</span><span class="code-tag">${escapeHtml(tag[1])}</span>`;
+  let lastIndex = 0;
+  const attrRe = /([\w:-]+)(\s*=\s*)("[^"]*"|'[^']*'|[^\s"'=<>`]+)/g;
+  for (const match of body.matchAll(attrRe)) {
+    html += escapeHtml(body.slice(lastIndex, match.index));
+    html += `<span class="code-attr">${escapeHtml(match[1])}</span><span class="code-bracket">${escapeHtml(match[2])}</span><span class="code-value">${escapeHtml(match[3])}</span>`;
+    lastIndex = match.index + match[0].length;
+  }
+  html += escapeHtml(body.slice(lastIndex));
+  if (end) html += `<span class="code-bracket">${escapeHtml(end)}</span>`;
+  return html;
 }
 
 function highlightCssLine(line) {
-  return escapeHtml(line)
-    .replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="code-comment">$1</span>')
-    .replace(/(#(?:[0-9a-f]{3}){1,2}\b)/gi, '<span class="code-color">$1</span>')
-    .replace(/([a-z-]+)(\s*:)/gi, '<span class="code-attr">$1</span><span class="code-bracket">$2</span>')
-    .replace(/(&quot;.*?&quot;|&#039;.*?&#039;)/g, '<span class="code-value">$1</span>');
+  const text = String(line || '');
+  const comment = text.match(/\/\*[\s\S]*?\*\//);
+  if (comment) {
+    const before = text.slice(0, comment.index);
+    const after = text.slice(comment.index + comment[0].length);
+    return `${highlightCssLine(before)}<span class="code-comment">${escapeHtml(comment[0])}</span>${highlightCssLine(after)}`;
+  }
+  return text.split(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/g).map(part => {
+    if (!part) return '';
+    if (/^["']/.test(part)) return `<span class="code-value">${escapeHtml(part)}</span>`;
+    return escapeHtml(part)
+      .replace(/(#(?:[0-9a-f]{3}){1,2}\b)/gi, '<span class="code-color">$1</span>')
+      .replace(/([a-z-]+)(\s*:)/gi, '<span class="code-attr">$1</span><span class="code-bracket">$2</span>');
+  }).join('');
 }
 
 function highlightScriptLine(line) {
-  return escapeHtml(line)
-    .replace(/(\/\/.*$)/g, '<span class="code-comment">$1</span>')
-    .replace(/(&quot;.*?&quot;|&#039;.*?&#039;|`.*?`)/g, '<span class="code-value">$1</span>')
-    .replace(/\b(const|let|var|function|return|if|else|for|while|await|async|new|class|try|catch|throw|import|export)\b/g, '<span class="code-keyword">$1</span>');
+  const text = String(line || '');
+  const commentIndex = text.indexOf('//');
+  const code = commentIndex >= 0 ? text.slice(0, commentIndex) : text;
+  const comment = commentIndex >= 0 ? text.slice(commentIndex) : '';
+  const highlighted = code.split(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)/g).map(part => {
+    if (!part) return '';
+    if (/^["'`]/.test(part)) return `<span class="code-value">${escapeHtml(part)}</span>`;
+    return escapeHtml(part).replace(/\b(const|let|var|function|return|if|else|for|while|await|async|new|class|try|catch|throw|import|export)\b/g, '<span class="code-keyword">$1</span>');
+  }).join('');
+  return comment ? `${highlighted}<span class="code-comment">${escapeHtml(comment)}</span>` : highlighted;
 }
 
 function highlightLine(line, mode = 'html') {
@@ -173,29 +228,70 @@ function shouldIndentAfter(line) {
     && !/^<(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)\b/i.test(line);
 }
 
+function splitCssForDisplay(line) {
+  const chunks = [];
+  let current = '';
+  let quote = '';
+  let depth = 0;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    current += char;
+    if (quote) {
+      if (char === '\\') {
+        index += 1;
+        current += line[index] || '';
+      } else if (char === quote) {
+        quote = '';
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") quote = char;
+    else if (char === '(') depth += 1;
+    else if (char === ')') depth = Math.max(0, depth - 1);
+    else if (depth === 0 && (char === '{' || char === '}' || char === ';')) {
+      const chunk = current.trim();
+      if (chunk) chunks.push(chunk);
+      current = '';
+    }
+  }
+  const tail = current.trim();
+  if (tail) chunks.push(tail);
+  return chunks.length ? chunks : [line];
+}
+
+function splitRawTextForDisplay(line, mode) {
+  if (mode === 'css') return splitCssForDisplay(line);
+  return [line];
+}
+
 function formatSourceForDisplay(rawHtml) {
   const raw = String(rawHtml || '');
   if (!raw.trim()) return '';
 
   const normalized = raw
     .replace(/>\s+</g, '>\n<')
-    .replace(/(<\/(?:style|script)\s*>)/gi, '$1\n')
+    .replace(/(<\/(?:style|script)\s*>)/gi, '\n$1\n')
     .replace(/(<(?:style|script)\b[^>]*>)/gi, '\n$1\n');
 
   let indent = 0;
-  let rawTextMode = false;
+  let rawTextMode = '';
   const output = [];
   for (const sourceLine of normalized.split('\n')) {
     const line = sourceLine.trim();
     if (!line) continue;
 
-    if (/^<\/(style|script)\s*>/i.test(line)) rawTextMode = false;
+    if (/^<\/(style|script)\s*>/i.test(line)) rawTextMode = '';
     if (!rawTextMode && /^<\//.test(line)) indent = Math.max(0, indent - 1);
 
-    output.push(`${'  '.repeat(rawTextMode ? indent : Math.max(0, indent))}${line}`);
+    const displayLines = rawTextMode && !/^<\/(style|script)\s*>/i.test(line)
+      ? splitRawTextForDisplay(line, rawTextMode)
+      : [line];
+    displayLines.forEach(displayLine => {
+      output.push(`${'  '.repeat(rawTextMode ? indent : Math.max(0, indent))}${displayLine}`);
+    });
 
     if (/^<(style|script)\b/i.test(line) && !/<\/(style|script)\s*>/i.test(line)) {
-      rawTextMode = true;
+      rawTextMode = /^<style\b/i.test(line) ? 'css' : 'script';
       indent += 1;
       continue;
     }
@@ -206,6 +302,11 @@ function formatSourceForDisplay(rawHtml) {
 
 export function renderSource(sourceEl, statusEl, rawHtml, maxChars = 80000) {
   const fullText = String(rawHtml || '');
+  if (!fullText.trim()) {
+    sourceEl.textContent = '';
+    if (sourceEl.closest('.source-rail')?.dataset.streaming !== '1') statusEl.textContent = 'empty';
+    return;
+  }
   const sourceText = fullText.length > maxChars
     ? `... trimmed ${fullText.length - maxChars} chars ...\n${fullText.slice(-maxChars)}`
     : fullText;

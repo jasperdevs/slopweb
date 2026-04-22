@@ -1,11 +1,17 @@
 import { activateTab, activeTab, closeTab, commitActiveTab, createTab, state, saveHistory, updateActiveTabTitle } from './state.js';
-import { checkAuthStatus, readNdjsonStream } from './api.js';
-import { composeLiveSrcdoc, composeSrcdoc } from './frame.js';
-import { els, setStatus, updateOmniboxState, focusAddress, setLiveMode, setSourceOpen, toggleSource, renderHistory, renderTabs, renderSource } from './ui.js';
+import { checkAuthStatus, deleteSavedPage, listSavedPages, readNdjsonStream } from './api.js';
+import { composeLiveSrcdoc, composeStaticSrcdoc } from './frame.js';
+import { homePage } from './home.js';
+import { els, setStatus, updateOmniboxState, focusAddress, setLiveMode, setSourceOpen, renderHistory, renderTabs, renderSource, initSourceResizer } from './ui.js';
+import { escapeHtml } from './utils.js';
 
 let liveFrameReady = false;
+let liveFrameShellActive = true;
 let liveFrameTimer = 0;
+let liveSourceTimer = 0;
+let lastSourceRenderAt = 0;
 let lastLiveFrameHtml = '';
+const SOURCE_RENDER_INTERVAL_MS = 140;
 const streamPerfEnabled = (() => {
   try {
     return new URLSearchParams(location.search).has('streamMetrics') || localStorage.getItem('slopweb-stream-metrics') === '1';
@@ -48,24 +54,34 @@ function markStreamFirstElement() {
   if (run && !run.ttfeMs) run.ttfeMs = performance.now() - run.startedAt;
 }
 
+function postToFrame(message) {
+  if (!liveFrameReady || !els.frame.contentWindow) return;
+  els.frame.contentWindow.postMessage(message, '*');
+}
+
 function normalizeInput(value, base = state.entries[state.index]) {
-  const raw = String(value || '').trim();
-  if (!raw) return 'synthetic://home';
+  const raw = String(value || '').trim().replace(/^synthetic:\/\//i, 'slopweb://');
+  if (!raw) return 'slopweb://home';
   if (/^#/i.test(raw)) return null;
   if (/^javascript:/i.test(raw)) return null;
+  if (/^slopweb\/pages\/[^/]+\.html$/i.test(raw)) return raw;
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) return raw;
   if (raw.startsWith('/')) {
-    try { return new URL(raw, base || 'synthetic://local').href; }
-    catch { return `synthetic://local${raw}`; }
+    try { return new URL(raw, base || 'slopweb://local').href; }
+    catch { return `slopweb://local${raw}`; }
   }
   if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(raw)) return `https://${raw}`;
-  return `synthetic://search/${encodeURIComponent(raw)}`;
+  return `slopweb://search/${encodeURIComponent(raw)}`;
 }
 
 async function checkAuth() {
   try {
     const data = await checkAuthStatus();
-    if (data.connected) setStatus('good', data.provider === 'ai-sdk' ? 'Local AI ready' : 'Codex ready');
+    if (data.connected) {
+      const label = data.provider === 'ai-sdk' ? (data.localModel || data.model || 'Local AI') : 'Codex ready';
+      setStatus('good', label.length > 28 ? `${label.slice(0, 25)}...` : label);
+      els.authStatus.title = data.provider === 'ai-sdk' ? `Local AI: ${data.localModel || data.model}\n${data.localBaseUrl || ''}` : 'Codex ready';
+    }
     else setStatus('bad', data.provider === 'ai-sdk' ? 'Local AI needed' : 'Login needed');
     return data;
   } catch {
@@ -79,20 +95,16 @@ function resetLiveDocument(reason = 'document') {
   state.liveRenderQueued = false;
   state.sourceRenderQueued = false;
   state.renderFrameQueued = false;
+  lastLiveFrameHtml = '';
+  clearLiveSourceTimer();
   els.sourceStatus.textContent = 'waiting';
-  renderSource(els.liveSource, els.sourceStatus, '');
+  if (state.sourceOpen) renderSource(els.liveSource, els.sourceStatus, '');
   setLiveMode(true, reason === 'model' || reason === 'codex-final' ? 'receiving html' : 'waiting');
   if (liveFrameTimer) {
     window.clearTimeout(liveFrameTimer);
     liveFrameTimer = 0;
   }
-  liveFrameReady = false;
-  lastLiveFrameHtml = '';
-  els.frame.onload = () => {
-    liveFrameReady = true;
-    postLivePreview();
-  };
-  els.frame.srcdoc = composeLiveSrcdoc();
+  postToFrame({ type: 'slopweb:reset' });
 }
 
 function hasOpenRawTextTag(text, tag) {
@@ -101,18 +113,17 @@ function hasOpenRawTextTag(text, tag) {
 
 function canRenderLiveHtml(html) {
   const text = String(html || '');
-  if (!/<body[\s>]/i.test(text)) return false;
-  if (text.lastIndexOf('<') > text.lastIndexOf('>')) return false;
+  if (!text.trim()) return false;
   const lowerText = text.toLowerCase();
   return !['style', 'script', 'textarea', 'title'].some(tag => hasOpenRawTextTag(lowerText, tag));
 }
 
 function postLivePreview() {
-  if (!liveFrameReady || !els.frame.contentWindow || !canRenderLiveHtml(state.liveBuffer)) return;
+  if (!canRenderLiveHtml(state.liveBuffer)) return;
   if (state.liveBuffer === lastLiveFrameHtml) return;
   lastLiveFrameHtml = state.liveBuffer;
   markStreamPost(streamPerf?.current);
-  els.frame.contentWindow.postMessage({ type: 'slopweb:preview', html: state.liveBuffer }, '*');
+  postToFrame({ type: 'slopweb:preview', html: state.liveBuffer });
 }
 
 function scheduleLiveFrameRender() {
@@ -120,7 +131,29 @@ function scheduleLiveFrameRender() {
   liveFrameTimer = window.setTimeout(() => {
     liveFrameTimer = 0;
     postLivePreview();
-  }, 180);
+  }, 0);
+}
+
+function clearLiveSourceTimer() {
+  if (!liveSourceTimer) return;
+  window.clearTimeout(liveSourceTimer);
+  liveSourceTimer = 0;
+}
+
+function renderLiveSourceNow() {
+  clearLiveSourceTimer();
+  lastSourceRenderAt = performance.now();
+  renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
+}
+
+function scheduleLiveSourceRender() {
+  if (!state.sourceOpen || liveSourceTimer) return;
+  const delay = Math.max(0, SOURCE_RENDER_INTERVAL_MS - (performance.now() - lastSourceRenderAt));
+  if (delay <= 0) {
+    renderLiveSourceNow();
+    return;
+  }
+  liveSourceTimer = window.setTimeout(renderLiveSourceNow, delay);
 }
 
 function scheduleLiveRender({ source = true, frame = true } = {}) {
@@ -134,7 +167,7 @@ function scheduleLiveRender({ source = true, frame = true } = {}) {
     state.renderFrameQueued = false;
     state.sourceRenderQueued = false;
     state.liveRenderQueued = false;
-    if (shouldRenderSource) renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
+    if (shouldRenderSource) scheduleLiveSourceRender();
     if (shouldRenderFrame) {
       markStreamFrame(streamPerf?.current);
       scheduleLiveFrameRender();
@@ -145,22 +178,28 @@ function scheduleLiveRender({ source = true, frame = true } = {}) {
 function appendLiveHtml(chunk) {
   if (!chunk) return;
   state.liveBuffer += chunk;
-  scheduleLiveRender();
+  scheduleLiveRender({ source: state.sourceOpen, frame: true });
 }
 
 function beginLiveHtml(address) {
   if (state.abortController) state.abortController.abort();
   state.abortController = new AbortController();
+  if (!liveFrameShellActive) {
+    liveFrameReady = false;
+    liveFrameShellActive = true;
+    els.frame.srcdoc = composeLiveSrcdoc();
+  }
+  els.stopBtn?.classList.remove('hidden');
   setLiveMode(true, 'assembling elements');
   els.addressInput.value = address;
   resetLiveDocument('opening');
-  renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
   return state.abortController;
 }
 
 function finishLiveHtml(controller = state.abortController) {
   setLiveMode(false);
   els.sourceStatus.textContent = state.liveBuffer ? 'done' : 'idle';
+  els.stopBtn?.classList.add('hidden');
   if (!controller || state.abortController === controller) state.abortController = null;
 }
 
@@ -179,21 +218,40 @@ function renderFinalPage(page) {
   document.title = `${page.title || 'Generated page'} · Slopweb`;
   state.currentHtml = page.html || '';
   state.liveBuffer = page.html || state.liveBuffer;
+  const tab = activeTab();
+  if (tab) {
+    tab.savedUrl = page.savedUrl || tab.savedUrl || '';
+    tab.savedDisplayPath = page.savedDisplayPath || tab.savedDisplayPath || '';
+  }
+  els.addressInput.value = page.savedDisplayPath || page.address || state.entries[state.index] || 'slopweb/pages/home.html';
+  updateOmniboxState();
   updateActiveTabTitle(page.title || 'Generated page');
   renderTabs({ activate: switchTab, close: closeExistingTab });
-  renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
+  if (state.sourceOpen) renderLiveSourceNow();
+  else els.sourceStatus.textContent = state.liveBuffer ? `${Math.max(1, Math.round(state.liveBuffer.length / 1024))}kb` : 'empty';
   if (liveFrameTimer) {
     window.clearTimeout(liveFrameTimer);
     liveFrameTimer = 0;
   }
-  els.frame.onload = null;
-  liveFrameReady = false;
-  els.frame.srcdoc = composeSrcdoc(page.html || state.liveBuffer || '');
+  lastLiveFrameHtml = '';
+  postLivePreview();
 }
 
 export async function navigate(rawAddress, options = {}) {
   const address = normalizeInput(rawAddress);
   if (!address) return;
+  if (isSavedPageAddress(address)) {
+    try {
+      await openSavedPage(address, options);
+    } catch (error) {
+      renderFinalPage({ title: 'Saved page missing', html: errorPage(address, error.message), address });
+    }
+    return;
+  }
+  if (isHomeAddress(address)) {
+    openHomePage(address, options);
+    return;
+  }
   const serial = ++state.navigationSerial;
   els.addressInput.value = address;
   updateOmniboxState();
@@ -261,17 +319,70 @@ export async function navigate(rawAddress, options = {}) {
   }
 }
 
-function errorPage(address, message) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Generation error</title><style>:root{color-scheme:light;font-family:Arial,"Segoe UI",Roboto,sans-serif}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#fff;color:#202124}main{width:min(720px,calc(100vw - 40px));border:1px solid #dadce0;border-radius:20px;padding:32px;background:#fff;box-shadow:0 1px 2px rgba(60,64,67,.16),0 8px 28px rgba(60,64,67,.12)}.mark{width:48px;height:48px;border-radius:50%;background:conic-gradient(#4285f4 0 25%,#ea4335 0 50%,#fbbc04 0 75%,#34a853 0);margin-bottom:18px}h1{margin:0 0 10px;font-size:28px;font-weight:500;letter-spacing:-.02em}p{color:#5f6368;line-height:1.55}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}a{display:inline-flex;align-items:center;min-height:38px;padding:0 16px;border-radius:999px;text-decoration:none;font-weight:600}.primary{background:#1a73e8;color:#fff}.secondary{background:#f1f3f4;color:#3c4043}details{margin-top:18px;border:1px solid #edf0f2;border-radius:14px;background:#f8fafd}summary{cursor:pointer;padding:14px 16px;color:#3c4043;font-weight:600}pre{white-space:pre-wrap;margin:0;padding:0 16px 16px;color:#a50e0e;font-size:12px;line-height:1.45;max-height:240px;overflow:auto}</style></head><body><main><div class="mark" aria-hidden="true"></div><h1>Generator hiccup</h1><p><strong>Address:</strong> ${escapeHtml(address)}</p><p>The shell is fine. This was an internal page-generation failure. Try reload, or go home and search again.</p><div class="actions"><a class="primary" href="${escapeHtml(address)}">Try again</a><a class="secondary" href="synthetic://home">Go home</a></div><details><summary>Technical details</summary><pre>${escapeHtml(message || 'Unknown generator error.')}</pre></details></main></body></html>`;
+function openHomePage(address, options = {}) {
+  if (state.abortController) {
+    state.abortController.abort();
+    state.abortController = null;
+  }
+  if (options.push !== false) {
+    state.entries = state.entries.slice(0, state.index + 1);
+    if (state.entries[state.entries.length - 1] !== address) state.entries.push(address);
+    state.index = state.entries.length - 1;
+  } else if (typeof options.index === 'number') {
+    state.index = options.index;
+  }
+  els.stopBtn?.classList.add('hidden');
+  setLiveMode(false);
+  els.addressInput.value = address;
+  updateOmniboxState();
+  renderHistory(navigate);
+  const page = homePage(address);
+  renderFinalPage(page);
+  liveFrameReady = false;
+  liveFrameShellActive = false;
+  lastLiveFrameHtml = '';
+  els.frame.srcdoc = composeStaticSrcdoc(page.html);
+  saveHistory();
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+function isHomeAddress(address) {
+  return String(address || '').toLowerCase() === 'slopweb://home';
+}
+
+function isSavedPageAddress(address) {
+  return /^slopweb\/pages\/[^/]+\.html$/i.test(String(address || ''));
+}
+
+function fileNameFromSavedAddress(address) {
+  return String(address || '').split('/').pop();
+}
+
+async function openSavedPage(address, options = {}) {
+  const fileName = fileNameFromSavedAddress(address);
+  const savedUrl = `/slopweb/pages/${encodeURIComponent(fileName)}`;
+  const res = await fetch(savedUrl);
+  if (!res.ok) throw new Error(`Saved page not found: ${address}`);
+  const html = await res.text();
+  if (options.push !== false) {
+    state.entries = state.entries.slice(0, state.index + 1);
+    if (state.entries[state.entries.length - 1] !== address) state.entries.push(address);
+    state.index = state.entries.length - 1;
+  } else if (typeof options.index === 'number') {
+    state.index = options.index;
+  }
+  renderHistory(navigate);
+  renderFinalPage({
+    title: fileName.replace(/\.html$/i, ''),
+    html,
+    address,
+    savedUrl,
+    savedDisplayPath: address
+  });
+  saveHistory();
+}
+
+function errorPage(address, message) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Generation error</title><style>:root{color-scheme:light;font-family:"Inter","Segoe UI",Roboto,Arial,system-ui,sans-serif;-webkit-font-smoothing:antialiased}body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 20% 10%,rgba(217,48,37,.06),transparent 45%),radial-gradient(circle at 80% 90%,rgba(97,33,210,.05),transparent 45%),#f6f7fa;color:#1a1e30}main{width:min(720px,calc(100vw - 40px));border:1px solid #eef0f5;border-radius:20px;padding:36px;background:#fff;box-shadow:0 2px 6px rgba(18,22,38,.07),0 28px 60px rgba(18,22,38,.14);position:relative;overflow:hidden;animation:err-in 360ms cubic-bezier(.22,1,.36,1) both}main:before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(135deg,#d93025,#6121d2 52%,#3a4af0)}@keyframes err-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}.mark{width:46px;height:46px;object-fit:contain;margin-bottom:20px;filter:drop-shadow(0 4px 16px rgba(97,33,210,.2))}h1{margin:0 0 10px;font-size:28px;font-weight:650;letter-spacing:-.02em;color:#121527}p{color:#5b6378;line-height:1.58;margin:0 0 8px;font-size:14px}strong{color:#1a1e30;font-weight:650}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}a{display:inline-flex;align-items:center;min-height:40px;padding:0 18px;border-radius:10px;text-decoration:none;font-weight:600;font-size:13.5px;letter-spacing:-.003em;transition:all .18s cubic-bezier(.22,1,.36,1)}.primary{background:#121527;color:#fff;box-shadow:0 1px 2px rgba(18,22,38,.12),0 4px 14px rgba(18,22,38,.18)}.primary:hover{background:#000;transform:translateY(-1px)}.secondary{background:#f3f4f9;color:#1a1e30}.secondary:hover{background:#e7eaf1}details{margin-top:22px;border:1px solid #eef0f5;border-radius:12px;background:#f6f7fa}summary{cursor:pointer;padding:14px 16px;color:#3c4043;font-weight:600;font-size:13px;list-style:none}summary::-webkit-details-marker{display:none}summary:before{content:"›";display:inline-block;margin-right:8px;color:#8a909f;transition:transform .18s cubic-bezier(.22,1,.36,1)}details[open] summary:before{transform:rotate(90deg)}pre{white-space:pre-wrap;margin:0;padding:0 16px 16px;color:#a50e0e;font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;max-height:240px;overflow:auto}</style></head><body><main><img class="mark" src="/assets/logo.png" alt="Slopweb"><h1>Generation failed</h1><p><strong>Address:</strong> ${escapeHtml(address)}</p><p>The shell is still running. Try reload, or go home and search again.</p><div class="actions"><a class="primary" href="${escapeHtml(address)}">Try again</a><a class="secondary" href="slopweb://home">Go home</a></div><details><summary>Technical details</summary><pre>${escapeHtml(message || 'Unknown generator error.')}</pre></details></main></body></html>`;
 }
 
 function showAuthCommands(message = 'Codex login needed.') {
@@ -287,25 +398,25 @@ function clearHistory() {
   saveHistory();
   renderHistory(navigate);
   if (els.chromeMenu) els.chromeMenu.open = false;
-  navigate('synthetic://home');
+  navigate('slopweb://home');
 }
 
 function renderActiveTab() {
   const tab = activeTab();
-  els.addressInput.value = state.entries[state.index] || tab?.entries?.[tab.index] || 'synthetic://home';
+  els.addressInput.value = state.entries[state.index] || tab?.entries?.[tab.index] || 'slopweb://home';
   document.title = `${tab?.title || 'New Tab'} · Slopweb`;
   state.liveBuffer = tab?.source || tab?.html || '';
   state.currentHtml = tab?.html || '';
   renderTabs({ activate: switchTab, close: closeExistingTab });
   renderHistory(navigate);
   updateOmniboxState();
-  renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
+  if (state.sourceOpen) renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
+  else els.sourceStatus.textContent = state.liveBuffer ? `${Math.max(1, Math.round(state.liveBuffer.length / 1024))}kb` : 'empty';
   if (state.currentHtml) {
-    els.frame.onload = null;
-    liveFrameReady = false;
-    els.frame.srcdoc = composeSrcdoc(state.currentHtml);
+    lastLiveFrameHtml = '';
+    postLivePreview();
   } else {
-    navigate('synthetic://home', { push: false, index: 0 });
+    navigate('slopweb://home', { push: false, index: 0 });
   }
 }
 
@@ -325,8 +436,61 @@ function closeExistingTab(id) {
 
 function openNewTab() {
   if (state.abortController) state.abortController.abort();
-  createTab('synthetic://home');
+  createTab('slopweb://home');
   renderActiveTab();
+}
+
+function formatSavedPageDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+async function refreshSavedPages() {
+  if (!els.savedPagesList) return;
+  els.savedPagesList.textContent = '';
+  const { pages = [] } = await listSavedPages();
+  if (!pages.length) {
+    const li = document.createElement('li');
+    const empty = document.createElement('button');
+    empty.type = 'button';
+    empty.className = 'saved-open';
+    empty.disabled = true;
+    empty.textContent = 'No saved pages yet';
+    li.append(empty);
+    els.savedPagesList.append(li);
+    return;
+  }
+  els.savedPagesList.replaceChildren(...pages.map(page => {
+    const li = document.createElement('li');
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'saved-open';
+    const title = document.createElement('span');
+    title.className = 'saved-title';
+    title.textContent = page.fileName.replace(/^\d{4}-\d{2}-\d{2}t/i, '').replace(/\.html$/i, '');
+    const meta = document.createElement('span');
+    meta.className = 'saved-meta';
+    meta.textContent = `${formatSavedPageDate(page.modifiedAt)} · ${Math.max(1, Math.round(Number(page.size || 0) / 1024))}kb`;
+    open.append(title, meta);
+    open.addEventListener('click', () => {
+      els.savedPagesMenu.open = false;
+      navigate(page.savedDisplayPath);
+    });
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'saved-delete';
+    del.setAttribute('aria-label', `Delete ${page.fileName}`);
+    del.textContent = '×';
+    del.addEventListener('click', async event => {
+      event.stopPropagation();
+      await deleteSavedPage(page.fileName);
+      await refreshSavedPages();
+    });
+    li.append(open, del);
+    return li;
+  }));
 }
 
 els.navForm.addEventListener('submit', event => {
@@ -336,6 +500,13 @@ els.navForm.addEventListener('submit', event => {
 els.addressInput.addEventListener('input', updateOmniboxState);
 els.addressInput.addEventListener('focus', () => requestAnimationFrame(() => els.addressInput.select()));
 els.omniboxClear.addEventListener('click', () => { els.addressInput.value = ''; updateOmniboxState(); els.addressInput.focus(); });
+els.stopBtn?.addEventListener('click', () => {
+  if (state.abortController) state.abortController.abort();
+  finishLiveHtml();
+});
+els.regenBtn?.addEventListener('click', () => navigate(state.entries[state.index] || 'slopweb://home', { push: false, index: Math.max(state.index, 0) }));
+els.savedPagesMenu?.addEventListener('toggle', () => { if (els.savedPagesMenu.open) refreshSavedPages().catch(() => {}); });
+els.refreshPagesBtn?.addEventListener('click', () => refreshSavedPages().catch(() => {}));
 els.newTabBtn.addEventListener('click', openNewTab);
 els.tabList.addEventListener('dblclick', event => {
   if (event.target.closest('.tab')) return;
@@ -344,11 +515,14 @@ els.tabList.addEventListener('dblclick', event => {
 els.backBtn.addEventListener('click', () => { if (state.index > 0) navigate(state.entries[state.index - 1], { push: false, index: state.index - 1 }); });
 els.forwardBtn.addEventListener('click', () => { if (state.index < state.entries.length - 1) navigate(state.entries[state.index + 1], { push: false, index: state.index + 1 }); });
 els.reloadBtn.addEventListener('click', () => { navigate(state.entries[state.index] || els.addressInput.value, { push: false, index: Math.max(state.index, 0) }); });
-els.homeBtn.addEventListener('click', () => navigate('synthetic://home'));
+els.homeBtn.addEventListener('click', () => navigate('slopweb://home'));
 els.clearBtn.addEventListener('click', clearHistory);
 els.menuNewTab?.addEventListener('click', () => { if (els.chromeMenu) els.chromeMenu.open = false; openNewTab(); });
 els.menuFocusAddress?.addEventListener('click', () => { if (els.chromeMenu) els.chromeMenu.open = false; focusAddress(); });
-els.sourceCollapse.addEventListener('click', toggleSource);
+els.sourceCollapse.addEventListener('click', () => {
+  setSourceOpen(!state.sourceOpen);
+  if (state.sourceOpen) renderSource(els.liveSource, els.sourceStatus, state.liveBuffer);
+});
 
 document.querySelectorAll('[data-jump]').forEach(button => {
   button.addEventListener('click', () => {
@@ -373,15 +547,22 @@ window.addEventListener('keydown', event => {
 });
 
 setSourceOpen(state.sourceOpen);
+initSourceResizer();
 updateOmniboxState();
-await checkAuth();
+const authReady = checkAuth();
 renderTabs({ activate: switchTab, close: closeExistingTab });
 renderHistory(navigate);
-const params = new URLSearchParams(location.search);
-if (params.get('resume') === '1' && state.entries[state.index]) {
-  els.addressInput.value = state.entries[state.index];
-  updateOmniboxState();
-  await navigate(state.entries[state.index], { push: false, index: state.index });
-} else {
-  renderActiveTab();
-}
+state.entries = ['slopweb://home'];
+state.index = 0;
+state.currentHtml = '';
+state.liveBuffer = '';
+saveHistory();
+els.frame.addEventListener('load', () => {
+  liveFrameReady = true;
+  lastLiveFrameHtml = '';
+  if (liveFrameShellActive) postLivePreview();
+});
+liveFrameShellActive = true;
+els.frame.srcdoc = composeLiveSrcdoc();
+await navigate('slopweb://home', { push: false, index: 0 });
+await authReady;

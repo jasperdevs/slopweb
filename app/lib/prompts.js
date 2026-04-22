@@ -1,23 +1,37 @@
 export function makeSystemPrompt() {
-  return `You are Slopweb's page compiler.
-Return raw HTML only. The first output bytes must be <!doctype html>.
-Build one complete self-contained HTML document with embedded CSS and optional embedded JavaScript.
-Emit in stream-friendly order: tiny head with charset, viewport, title; close head; open body; visible header/main; then larger CSS/script.
-Keep the first body elements real content so the browser can paint meaningful structure before the full page arrives.
-Do not use external assets, CDNs, iframes, trackers, network calls, credential/payment collection, malware, or parent/window access.`;
+  return `Return HTML only.
+Begin exactly: <!doctype html><html><body><main>
+Include a compact embedded <style> after the first visible section.
+Keep it compact: concise CSS, one focused page, no long lists.
+No Markdown. No browser/app branding or internal scheme text.
+Polished, responsive, real content.`;
 }
 
 export function makePrompt({ address, history = [] }) {
   const safeHistory = Array.isArray(history)
-    ? history.slice(-3).map(item => String(item).slice(0, 96))
+    ? history.slice(-3).map(item => promptAddress(item).slice(0, 96))
     : [];
 
-  return `Generate a real page for:
-${address}
+  return `Return complete compact HTML only. Start visible.
+Page: ${promptAddress(address)}${safeHistory.length ? `\nHistory: ${safeHistory.join(' | ')}` : ''}
+Use concise CSS/content with one embedded <style>. Include useful nav/links/forms when natural. Internal href/action values may use slopweb://, never as visible text.`;
+}
 
-Include <html>, <head>, and <body>.
-Use embedded <style> and embedded <script> only when useful.
-Links/forms should point to plausible synthetic:// or normal-looking addresses so Slopweb can generate the next page.
-Do not explain. Do not use markdown. Do not copy protected layouts/text.
-History: ${safeHistory.length ? safeHistory.join(' | ') : 'none'}`;
+function promptAddress(address) {
+  const raw = String(address || '').trim().replace(/^synthetic:\/\//i, 'slopweb://');
+  if (/^slopweb:\/\/search\/?/i.test(raw)) {
+    const query = cleanPromptPart(raw.replace(/^slopweb:\/\/search\/?/i, ''));
+    return query ? `search for ${query}` : 'search';
+  }
+  if (/^slopweb:\/\//i.test(raw)) {
+    const path = cleanPromptPart(raw.replace(/^slopweb:\/\//i, ''));
+    return path ? path.replace(/[\/_-]+/g, ' ') : 'home';
+  }
+  return raw;
+}
+
+function cleanPromptPart(value) {
+  const text = String(value || '').replace(/^\?q=/i, '');
+  try { return decodeURIComponent(text).trim(); }
+  catch { return text.trim(); }
 }
